@@ -1,7 +1,8 @@
 package nak.classify
 
 import breeze.linalg._
-import breeze.math.{MutableRestrictedDomainTensorField, MutableTensorField, MutableInnerProductModule}
+import breeze.math.{MutableOptimizationSpace, MutableRestrictedDomainTensorField, MutableTensorField, MutableInnerProductModule}
+import breeze.numerics.abs
 import breeze.storage.Zero
 import nak.data.Example
 
@@ -17,39 +18,36 @@ import scala.reflect.ClassTag
 object Initializers {
 
   trait Initializer[L, T, M] {
-    def init(data: Iterable[Example[L, T]])(implicit vspace: MutableRestrictedDomainTensorField[T,Int,Double],
-                                            mspace: MutableRestrictedDomainTensorField[M,(Int,Int),Double],
+    def init(data: Iterable[Example[L, T]])(implicit optspace: MutableOptimizationSpace[M,T,Double],
                                             canDiag: diag.Impl[T,M]): M
   }
 
   trait ZeroInitializer[L, T, M] extends Initializer[L, T, M] {
-    override def init(data: Iterable[Example[L, T]])(implicit vspace: MutableRestrictedDomainTensorField[T,Int,Double],
-                                                     mspace: MutableRestrictedDomainTensorField[M,(Int,Int),Double],
+    override def init(data: Iterable[Example[L, T]])(implicit optspace: MutableOptimizationSpace[M,T,Double],
                                                      canDiag: diag.Impl[T,M]): M = {
-      import vspace._
+      import optspace._
       val fSize = dim(data.head.features)
-      mspace.zero((fSize,fSize))
+      zeroM((fSize,fSize))
     }
   }
 
   trait GenericScaledDiagInitializer[L,T,M] extends Initializer[L,T,M] {
-    override def init(data: Iterable[Example[L,T]])(implicit vspace: MutableRestrictedDomainTensorField[T,Int,Double],
-                                                    mspace: MutableRestrictedDomainTensorField[M,(Int,Int),Double],
+    override def init(data: Iterable[Example[L,T]])(implicit optspace: MutableOptimizationSpace[M,T,Double],
                                                     canDiag: diag.Impl[T,M]): M = {
-      import vspace._
+      import optspace._
       val fSize = dim(data.head.features)
 
       var maxes = Map.empty[Int,Double]
       var mins = Map.empty[Int,Double]
 
       for (ex <- data; (i, d) <- ex.features.activeIterator) {
-        if (maxes(i) < d)
+        if (d > maxes.getOrElse(i,Double.NegativeInfinity))
           maxes = maxes + (i -> d)
-        if (mins(i) > d)
+        if (d < mins.getOrElse(i,Double.PositiveInfinity))
           mins = mins + (i -> d)
       }
 
-      val dg = tabulateTensor(fSize,(i: Int) => 1.0 / (maxes(i) - mins(i)))
+      val dg = tabulateTensor(fSize,(i: Int) => 1.0 / abs(maxes.getOrElse(i,0.0) - mins.getOrElse(i,0.0)))
       diag(dg)
     }
   }

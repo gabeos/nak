@@ -15,10 +15,11 @@ import org.scalatest.junit.JUnitRunner
  */
 @RunWith(classOf[JUnitRunner])
 class NCAGenSparseClassifierTest
-  extends DenseNearestNeighborTestHarness {
+  extends SparseNearestNeighborTestHarness {
   var i = 0
   def trainer[L]: Trainer[L, SparseVector[Double]] = {
     import CSCMatrix.FrobeniusInnerProductCSCMatrixSpace._
+    import breeze.math.MutableOptimizationSpace.SparseOptimizationSpace._
     new NCA.Trainer[L, SparseVector[Double], CSCMatrix[Double]]() with GenericScaledDiagInitializer[L,SparseVector[Double],CSCMatrix[Double]]
   }
 }

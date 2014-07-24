@@ -42,14 +42,12 @@ object NCAObjectives {
   object Objectives {
 
 
-    class NCABatchObjective[L, T, M](data: Iterable[Example[L, T]])(implicit vspace: MutableRestrictedDomainTensorField[T, Int, Double],
-                                                                    mvspace: MutableTensorField[M, (Int,Int),Double],
-                                                                    opTrans: CanTranspose[T, Transpose[T]],
-                                                                    opMulMV: OpMulMatrix.Impl2[M, T, T],
-                                                                    opMulVTV: OpMulMatrix.Impl2[T, Transpose[T], M],
-                                                                    opMulMM: OpMulMatrix.Impl2[M, M, M]
+    class NCABatchObjective[L, T, M](data: Iterable[Example[L, T]])(implicit optspace: MutableOptimizationSpace[M,T,Double]
+//                                                                    opMulMV: OpMulMatrix.Impl2[M, T, T]
+//                                                                    opMulVTV: OpMulMatrix.Impl2[T, TT, M]
+//                                                                    opMulMM: OpMulMatrix.Impl2[M, M, M]
       ) extends BatchDiffFunction[M] {
-      import vspace._
+      import optspace._
       val size = data.size
       val featureSize = dim(data.head.features)
       val iData = data.map(_.features).toIndexedSeq
@@ -71,40 +69,39 @@ object NCAObjectives {
 
         def term(i: Int, j: Int): M = {
           val diff = iData(i) - iData(j)
-          mvspace.mulVS((diff * diff.t), smaxes(i)(j))
+          (diff * diff.t) :* smaxes(i)(j)
         }
 
         var value = 0.0
-        val grad = mvspace.zeroLike(A)
+        val grad = zeroLikeM(A)
         var i = 0
         while (i < batch.size) {
           val ind = batch(i)
 
           var p_ind = 0.0
-          val f = mvspace.zeroLike(A)
-          val s = mvspace.zeroLike(A)
+          val f = zeroLikeM(A)
+          val s = zeroLikeM(A)
           var j = 1
           while (j < size) {
             val kTerm = term(ind, j)
-            mvspace.addIntoVV(f, kTerm)
+            f += kTerm
             if (iLabel(ind) == iLabel(j)) {
-              mvspace.addIntoVV(s, kTerm)
+              s += kTerm
               p_ind += smaxes(ind)(j)
             }
             j += 1
           }
           value += p_ind
-          mvspace.addIntoVV(grad, mvspace.subVV(mvspace.mulVS(f, p_ind), s))
+          grad += (f :* p_ind) - s
           i += 1
         }
-        // Is this right? mulVV not mulMM?
-        (value, mvspace.mulVS(opMulMM(A, grad), -2.0))
+        (value, A * grad :* (-2.0))
       }
 
       override def fullRange: IndexedSeq[Int] = 0 until size
 
       private def eNSqProjNorm(v1: T, v2: T, proj: M): Double = {
-        exp(-pow(vspace.normImpl(vspace.subVV(opMulMV(proj, v1), opMulMV(proj, v2))), 2))
+        exp(-pow(norm(proj * v1 - proj * v2), 2))
       }
     }
 

@@ -5,7 +5,7 @@ import breeze.collection.mutable.Beam
 import breeze.linalg.operators.OpMulMatrix
 import breeze.linalg.support.{CanTranspose, CanTraverseValues}
 import breeze.linalg._
-import breeze.math.{MutableRestrictedDomainTensorField, MutableVectorField, MutableInnerProductModule, MutableVectorSpace}
+import breeze.math._
 import breeze.optimize.FirstOrderMinimizer.OptParams
 import breeze.optimize._
 import com.typesafe.scalalogging.slf4j.LazyLogging
@@ -112,32 +112,27 @@ object NCA {
   //    }
   //  }
 
-  class Trainer[L, T, M](opt: OptParams = OptParams(), K: Int = 1)(implicit vspace: MutableRestrictedDomainTensorField[T, Int, Double],
+  class Trainer[L, T, M](opt: OptParams = OptParams(), K: Int = 1)(implicit optspace: MutableOptimizationSpace[M, T, Double],
                                                                    mspace: MutableRestrictedDomainTensorField[M, (Int, Int), Double],
-                                                                   canDiag: diag.Impl[T, M],
-                                                                   opMulMV: OpMulMatrix.Impl2[M, T, T],
-                                                                   opMulVTV: OpMulMatrix.Impl2[T, Transpose[T], M],
-                                                                   opTrans: CanTranspose[T, Transpose[T]],
-                                                                   opMulMM: OpMulMatrix.Impl2[M, M, M]
+                                                                   canDiag: diag.Impl[T, M]
     ) extends Classifier.Trainer[L, T] with LazyLogging {
     self: Initializer[L, T, M] =>
     type MyClassifier = NCA[L, T, M]
 
     def train(data: Iterable[Example[L, T]]): MyClassifier = {
-      logger.debug(s"Training NCA-kNN classifier with ${data.size} examples.")
+      logger.info(s"Training NCA-kNN classifier with ${data.size} examples.")
 
-      logger.debug(s"Initializing NCA Transformation Matrix.")
+      logger.info(s"Initializing NCA Transformation Matrix.")
       val initial: M = init(data)
+      logger.debug(s"Initial value: \n$initial")
 
-      logger.debug(s"Initializing Batch Objective")
+      logger.info(s"Initializing Batch Objective")
       val df = new Objectives.NCABatchObjective[L, T, M](data)
 
-      //            implicit val mvIso: Iso_M_V[M, T] = new Iso_M_V[M, T](initial.rows, initial.cols)
-
-      logger.debug(s"Optimizing NCA Matrix.")
+      logger.info(s"Optimizing NCA Matrix.")
       val A = opt.minimize(df, initial)
-      //      val A = mvIso.backward(opt.minimize[T](df.throughLens[T], mvIso.forward(initial)))
 
+      import optspace.mulMVV
       new NCA[L, T, M](data, K, A)
     }
 

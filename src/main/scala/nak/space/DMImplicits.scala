@@ -23,7 +23,7 @@ package nak.space
 
 import breeze.generic.UFunc
 import breeze.linalg._
-import breeze.linalg.operators.{OpMulInner, OpMulMatrix, OpSub}
+import breeze.linalg.operators.{OpPow, OpMulInner, OpMulMatrix, OpSub}
 import breeze.math.{Semiring, MutableInnerProductModule}
 import breeze.numerics._
 
@@ -95,17 +95,11 @@ object DMImplicits {
 
   object euclidean extends UFunc {
 
-    implicit def euclideanDistanceFromZippedValues[T, U]
-    (implicit zipImpl: zipValues.Impl2[T, U, ZippedValues[Double, Double]]): Impl2[T, U, Double] =
-      new Impl2[T, U, Double] {
-        def apply(v: T, v2: U): Double = {
-          var dist = 0.0
-          zipValues(v, v2).foreach {
-            (a, b) =>
-              val diff = a - b
-              dist += (diff * diff)
-          }
-          sqrt(dist)
+    implicit def euclideanDistanceFromSubNorm[T]
+    (implicit sub: OpSub.Impl2[T,T,T], normImpl: norm.Impl2[T,Double,Double]) =
+      new Impl2[T,T,Double] {
+        def apply(v: T, v2: T): Double = {
+          norm(sub(v,v2),2.0)
         }
       }
   }
