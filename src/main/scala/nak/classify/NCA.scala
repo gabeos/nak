@@ -52,7 +52,7 @@ class NCA[L, T, M](examples: Iterable[Example[L, T]], k: Int, A: M)(implicit vsp
    */
   def distances(o: T): DistanceResult = {
     val beam = Beam[(Example[L, T], Double)](k)(Ordering.by(-(_: (_, Double))._2))
-    beam ++= examples.map(e => (e, decomposedMahalanobis(e.features, o, A)))
+    beam ++= examples.par.map(e => (e, decomposedMahalanobis(e.features, o, A))).seq
   }
 
   /** For the observation, return the max voting label with prob = 1.0
@@ -118,6 +118,8 @@ object NCA {
     ) extends Classifier.Trainer[L, T] with LazyLogging {
     self: Initializer[L, T, M] =>
     type MyClassifier = NCA[L, T, M]
+
+    logger.info(s"Initializing NCA Trainer with OptParams: $opt")
 
     def train(data: Iterable[Example[L, T]]): MyClassifier = {
       logger.info(s"Training NCA-kNN classifier with ${data.size} examples.")
