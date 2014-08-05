@@ -2,7 +2,7 @@ package nak.classify
 
 import breeze.linalg._
 import breeze.math.{MutableOptimizationSpace, MutableRestrictedDomainTensorField, MutableTensorField, MutableInnerProductModule}
-import breeze.numerics.abs
+import breeze.numerics._
 import breeze.storage.Zero
 import nak.data.Example
 
@@ -47,7 +47,11 @@ object Initializers {
           mins = mins + (i -> d)
       }
 
-      val dg = tabulateTensor(fSize,(i: Int) => 1.0 / abs(maxes.getOrElse(i,0.0) - mins.getOrElse(i,0.0)))
+      val dg = tabulateTensor(fSize,(i: Int) => {
+        val d = abs(maxes.getOrElse(i,0.0) - mins.getOrElse(i,0.0))
+        if (d == 0.0) 0.0
+        else 1.0 / d
+      })
       diag(dg)
     }
   }

@@ -54,65 +54,170 @@ object NCAObjectives extends LazyLogging {
       val iData = data.map(_.features).toIndexedSeq
       val iLabel = data.map(_.label).toIndexedSeq
 
+      private def eNSqProjNorm(v1: T, v2: T, proj: M): Double = {
+        exp(-pow(norm(proj * (v1 - v2)), 2))
+      }
+
+      private def timeToSecs(current: Long, last: Long): Double = {
+        (current - last) / 1000.0
+      }
+
       override def calculate(A: M, batch: IndexedSeq[Int]): (Double, M) = {
-        logger.info(s"Calculating Objective...")
+        logger.debug(s"Calculating objective gradient and value for batch indices:\n$batch")
         // shortcut to access indexed data through batch indices
         val batchData = iData.compose(batch.apply)
+        val batchLabel = iLabel.compose(batch.apply)
+        val rBatchInd = batch.zipWithIndex.toMap
+        val parBatch = batch.toArray.par
+        var time = System.currentTimeMillis()
 
-        logger.info(s"Calculating smNorms...")
-        val smNorms =
-          batch.map(i =>
-            (0 until size).withFilter(_ != i).map(k => eNSqProjNorm(iData(i), iData(k), A)).sum)
+        logger.debug(s"Calculating cache...")
+        val ensqpnCache = parBatch.map(i => parBatch.map(k => if (i == k) 0.0 else eNSqProjNorm(iData(i),iData(k),A)))
+        var ctime = System.currentTimeMillis()
+        logger.debug(s"Calculated ensqpnCache in ${timeToSecs(ctime,time)}")
+        time = ctime
 
-        logger.info(s"Calculating sMaxes...")
-        val smaxes = Array.tabulate[Double](batch.size, batch.size)((i, k) => {
-          if (i == k) 0.0
-          else eNSqProjNorm(batchData(i), batchData(k), A) / smNorms(i)
-        })
+//        logger.debug(s"Calculating smNorms...")
+        val smNorms = ensqpnCache.map(_.sum)
+        ctime = System.currentTimeMillis()
+        logger.debug(s"Calculated smNorms in ${timeToSecs(ctime,time)}")
+        time = ctime
+//        logger.debug(s"smNorms: ${smNorms.toSeq.seq}")
 
+//        logger.debug(s"Calculating sMaxes...")
+        val smaxes = ensqpnCache.zip(smNorms).map({case (i,n) => i.map(ik => ik / n)})
+        ctime = System.currentTimeMillis()
+        logger.debug(s"Calculated smaxes in ${timeToSecs(ctime,time)}")
+        time = ctime
+//        logger.debug(s"smaxes: ${smaxes(0)}")
+          //Array.tabulate[Double](batch.size, batch.size)((i, k) => ensqpnCache(i)(k) / smNorms(i))
+        //        val smaxes = Array.tabulate[Double](batch.size, batch.size)((i, k) => {
+        //          if (i == k) 0.0
+        //          else eNSqProjNorm(batchData(i), batchData(k), A) / smNorms(i)
+        //        })
         def term(i: Int, j: Int): M = {
-          val diff = iData(i) - iData(j)
-          (diff * diff.t) :* smaxes(i)(j)
+          val dift = iData(i) - iData(j)
+          (dift * dift.t) :* smaxes(rBatchInd(i))(rBatchInd(j))
         }
 
-        logger.info(s"Calculating grad and val...")
-        var value = 0.0
-        val grad = zeroLikeM(A)
-        var i = 0
-        while (i < batch.size) {
-          if (i == batch.size/2 || i == batch.size/4 || i == batch.size * 3 / 4)
-            logger.info(s"${(i/batch.size.toDouble) * 100} % ...")
-          val ind = batch(i)
+        def nterm(i: Int, j: Int, n: Double): M = {
+          val dift = iData(i) - iData(j)
+          (dift * dift.t) :* smaxes(rBatchInd(i))(rBatchInd(j))
+        }
 
-          var p_ind = 0.0
+        def bterm(i: Int, j: Int): M = {
+          val dift = batchData(i) - batchData(j)
+          val dtt: M = dift * dift.t
+          val smij: Double = smaxes(i)(j)
+          val res = dtt :* smij
+          res
+        }
+
+//        logger.debug(s"Evaluating terms...")
+//        val terms = parBatch.zip(smaxes).map({ case (i,ism) =>
+//          parBatch.zip(ism).map({ case (k,iksm) => nterm(i,k,iksm)})})
+//        logger.debug(s"Max_Min_Term_Norms: ${val norms = terms.map(_.map(norm(_))); (norms.map(_.min).min,norms.map(_.max).max)}")
+//        ctime = System.currentTimeMillis()
+//        logger.debug(s"Calculated terms in ${timeToSecs(ctime,time)}")
+//        time = ctime
+
+
+//        logger.debug(s"Summing terms...")
+
+//        val firstTerms = terms.map(trm => trm.reduce(_ + _))
+//        ctime = System.currentTimeMillis()
+//        logger.debug(s"Calculated first terms in ${timeToSecs(ctime, time)}")
+//        time = ctime
+//        val equalLabelFilter = parBatch.map(i => parBatch.map(j => iLabel(i) == iLabel(j)))
+//        ctime = System.currentTimeMillis()
+//        logger.debug(s"Calculated label filter in ${timeToSecs(ctime, time)}")
+//        time = ctime
+//        val secondTerms = terms.zip(equalLabelFilter).map({case (tL,bL) => tL.zip(bL).withFilter(_._2).map(_._1).reduce(_ + _)})
+//        ctime = System.currentTimeMillis()
+//        logger.debug(s"Calculated second terms in ${timeToSecs(ctime, time)}")
+//        time = ctime
+//        val p_i = smaxes.zip(equalLabelFilter).map({case (vL,bL) => vL.zip(bL).withFilter(_._2).map(_._1).reduce(_ + _)})
+//        ctime = System.currentTimeMillis()
+//        logger.debug(s"Calculated p_i in ${timeToSecs(ctime, time)}")
+//        time = ctime
+//        val valuep = p_i.reduce(_ + _)
+//        ctime = System.currentTimeMillis()
+//        logger.debug(s"Calculated value in ${timeToSecs(ctime, time)}")
+//        time = ctime
+//        val gradRHSP = p_i.zip(firstTerms).map({case (d,m) => m :* d}).zip(secondTerms).map({case (f,s) => f - s}).reduce(_ + _)
+//        ctime = System.currentTimeMillis()
+//        logger.debug(s"Calculated gradRHS in ${timeToSecs(ctime, time)}")
+//        time = ctime
+
+        val (probs, elGrads) = (0 until batch.size).par.map(i => {
+          val thisTime = System.currentTimeMillis()
           val f = zeroLikeM(A)
           val s = zeroLikeM(A)
-          var j = 1
-          while (j < size) {
-            val kTerm = term(ind, j)
-            f += kTerm
-            if (iLabel(ind) == iLabel(j)) {
-              s += kTerm
-              p_ind += smaxes(ind)(j)
+          var p_ind = 0.0
+          var j = 0
+          while (j < batch.size) {
+            val bt = bterm(i,j)
+            f += bt
+            if (batchLabel(i) == batchLabel(j)) {
+              s += bt
+              p_ind += smaxes(i)(j)
             }
             j += 1
           }
-          value += p_ind
-          grad += (f :* p_ind) - s
-          i += 1
-        }
-        val nA = A * grad :* (-2.0)
-        logger.info(s"Done! v = $value.")
-        (value, nA)
+          f :*= p_ind
+          f -= s
+          logger.debug(s"Completed iteration [$i / ${batch.size}] in ${timeToSecs(System.currentTimeMillis(),thisTime)}")
+          (p_ind,f)
+        }).unzip
+        ctime = System.currentTimeMillis()
+        logger.debug(s"Computed terms in ${timeToSecs(ctime,time)}")
+        time = ctime
+
+        val value = probs.sum
+        ctime = System.currentTimeMillis()
+        logger.debug(s"Computed value in ${timeToSecs(ctime,time)}")
+        time = ctime
+        val gradRHS = elGrads.reduce(_ + _)
+        ctime = System.currentTimeMillis()
+        logger.debug(s"Computed grad in ${timeToSecs(ctime,time)}")
+        time = ctime
+
+        //        var value = 0.0
+//        val gradRHS = zeroLikeM(A)
+//        var i = 0
+//        while (i < batch.size) {
+//          if (i % (batch.size / 10).toInt == 0)
+//            logger.debug(s"Calculating for point: [$i / ${batch.size}]")
+//          var p_ind = 0.0
+//          val f = zeroLikeM(A)
+//          val s = zeroLikeM(A)
+//
+//          var j = 0
+//          while (j < batch.size) {
+////            logger.debug(s"Summing point: [$j / ${batch.size}")
+//            val kTerm = bterm(i, j)
+//            f += kTerm
+//            if (batchLabel(i) == batchLabel(j)) {
+//              s += kTerm
+//              p_ind += smaxes(i)(j)
+//            }
+//            j += 1
+//          }
+//          value += p_ind
+//          f :*= p_ind
+//          f -= s
+//          gradRHS += f
+//          i += 1
+//        }
+        val nA = (A * gradRHS) :* (-2.0)
+        logger.debug(s"Gradient (numActive): ${nA.activeValuesIterator.length}")
+        logger.debug(s"Done! Val = $value, grad: ${norm(nA)}")
+        (-value, nA)
       }
 
       override def fullRange: IndexedSeq[Int] = 0 until size
 
-      private def eNSqProjNorm(v1: T, v2: T, proj: M): Double = {
-        exp(-pow(norm(proj * v1 - proj * v2), 2))
-      }
     }
-
   }
 
   object DenseObjectives {

@@ -58,6 +58,7 @@ trait DenseNearestNeighborTestHarness extends FunSuite {
     }
     val r = new Random(1)
     val crossV = Datasets.crossValidate[Example[String,DenseVector[Double]],Double](k,r.shuffle(IrisData.denseClassification.toIndexedSeq))(testCV)
+    println(s"CrossValidation Results: $crossV")
     assert(!crossV.exists(_ < 0.90))
   }
 }
@@ -77,6 +78,7 @@ trait SparseNearestNeighborTestHarness extends FunSuite {
     }
     val r = new Random(1)
     val crossV = Datasets.crossValidate[Example[String,SparseVector[Double]],Double](k,r.shuffle(IrisData.sparseClassification.toIndexedSeq))(testCV)
+    println(s"CrossValidation Results: $crossV")
     assert(!crossV.exists(_ < 0.90))
   }
 }
