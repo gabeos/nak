@@ -7,6 +7,7 @@ import breeze.math._
 import breeze.numerics._
 import breeze.optimize.{BatchDiffFunction, StochasticDiffFunction}
 import breeze.util.Isomorphism
+import com.typesafe.scalalogging.slf4j.LazyLogging
 import nak.data.Example
 
 import scala.reflect.ClassTag
@@ -18,7 +19,7 @@ import scala.reflect.ClassTag
  *
  *         Different styles of objective functions for NCA
  */
-object NCAObjectives {
+object NCAObjectives extends LazyLogging {
 
   class Iso_DM_DV(r: Int, c: Int) extends Isomorphism[DenseMatrix[Double], DenseVector[Double]] {
     override def forward(t: DenseMatrix[Double]): DenseVector[Double] = t.flatten()
@@ -54,14 +55,16 @@ object NCAObjectives {
       val iLabel = data.map(_.label).toIndexedSeq
 
       override def calculate(A: M, batch: IndexedSeq[Int]): (Double, M) = {
-
+        logger.info(s"Calculating Objective...")
         // shortcut to access indexed data through batch indices
         val batchData = iData.compose(batch.apply)
 
+        logger.info(s"Calculating smNorms...")
         val smNorms =
           batch.map(i =>
             (0 until size).withFilter(_ != i).map(k => eNSqProjNorm(iData(i), iData(k), A)).sum)
 
+        logger.info(s"Calculating sMaxes...")
         val smaxes = Array.tabulate[Double](batch.size, batch.size)((i, k) => {
           if (i == k) 0.0
           else eNSqProjNorm(batchData(i), batchData(k), A) / smNorms(i)
@@ -72,10 +75,13 @@ object NCAObjectives {
           (diff * diff.t) :* smaxes(i)(j)
         }
 
+        logger.info(s"Calculating grad and val...")
         var value = 0.0
         val grad = zeroLikeM(A)
         var i = 0
         while (i < batch.size) {
+          if (i == batch.size/2 || i == batch.size/4 || i == batch.size * 3 / 4)
+            logger.info(s"${(i/batch.size.toDouble) * 100} % ...")
           val ind = batch(i)
 
           var p_ind = 0.0
@@ -95,7 +101,9 @@ object NCAObjectives {
           grad += (f :* p_ind) - s
           i += 1
         }
-        (value, A * grad :* (-2.0))
+        val nA = A * grad :* (-2.0)
+        logger.info(s"Done! v = $value.")
+        (value, nA)
       }
 
       override def fullRange: IndexedSeq[Int] = 0 until size
