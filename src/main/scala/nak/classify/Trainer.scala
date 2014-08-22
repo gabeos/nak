@@ -28,9 +28,10 @@ object Trainer extends App {
     type TheClassifier = LinearClassifier[Int,UnindexedLFMatrix[Int,SparseVector[Double]],Counter[Int,Double],SparseVector[Double]]
 
     val trainer:Classifier.Trainer[Int,SparseVector[Double]] { type MyClassifier = TheClassifier } = params.`type`.toLowerCase match {
-      case "logistic" => new LogisticClassifier.Trainer[Int,SparseVector[Double]]
-      case "svm" => new SVM.SMOTrainer[Int,SparseVector[Double]]()
+//      case "logistic" => new LogisticClassifier.Trainer[Int,SparseVector[Double]]
+//      case "svm" => new SVM.SMOTrainer[Int,SparseVector[Double]]()
 //      case "pegasos" => new SVM.Pegasos[Int,SparseVector[Double]](30 * input.examples.length)
+      case _ => throw new UnsupportedOperationException
     }
     val classifier = trainer.train(input.examples)
     println("Performance on training set: ")

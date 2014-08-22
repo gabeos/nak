@@ -1,7 +1,7 @@
 package nak.classify
 
 import breeze.linalg._
-import breeze.math.{MutableOptimizationSpace, MutableRestrictedDomainTensorField, MutableTensorField, MutableInnerProductModule}
+import breeze.math.{MutableOptimizationSpace}
 import breeze.numerics._
 import breeze.storage.Zero
 import nak.data.Example

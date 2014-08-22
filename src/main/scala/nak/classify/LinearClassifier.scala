@@ -21,7 +21,7 @@ import nak.serialization.DataSerialization.ReadWritable
 import nak.serialization.DataSerialization
 import breeze.linalg._
 import breeze.linalg.operators._
-import breeze.math.{MutableTensorField, VectorField}
+import breeze.math.{MutableEnumeratedCoordinateField, VectorField}
 
 /**
  * A LinearClassifier is a multi-class classifier with decision
@@ -36,7 +36,7 @@ import breeze.math.{MutableTensorField, VectorField}
 @SerialVersionUID(1L)
 class LinearClassifier[L,TW, TL, TF]
     (val featureWeights: TW, val intercepts: TL)
-    (implicit viewT2 : TW<:<NumericOps[TW], vspace: MutableTensorField[TL, L, Double],
+    (implicit viewT2 : TW<:<NumericOps[TW], vspace: MutableEnumeratedCoordinateField[TL, L, Double],
      mulTensors : OpMulMatrix.Impl2[TW, TF, TL]) extends Classifier[L,TF] with Serializable {
   import vspace._
   def scores(o: TF) = {
@@ -50,7 +50,7 @@ class LinearClassifier[L,TW, TL, TF]
 }
 
 object LinearClassifier {
-  implicit def linearClassifierReadWritable[L, T2, TL, TF](implicit viewT2 : T2<:<NumericOps[T2], vspace: MutableTensorField[TL, L, Double],
+  implicit def linearClassifierReadWritable[L, T2, TL, TF](implicit viewT2 : T2<:<NumericOps[T2], vspace: MutableEnumeratedCoordinateField[TL, L, Double],
                                                            mulTensors : OpMulMatrix.Impl2[T2, TF, TL],
                                                         view: TL <:< Tensor[L, Double],
                                                         tfW: DataSerialization.ReadWritable[T2],

@@ -1,8 +1,8 @@
 package nak.classify
 
 import nak.data.Example
-import breeze.math.{MutableTensorField, MutableVectorField, MutableInnerProductVectorSpace, MutableInnerProductModule}
-import breeze.linalg.{argmax, SparseVector, Counter}
+import breeze.math.{MutableVectorField}
+import breeze.linalg.{QuasiTensor, argmax, Counter}
 import breeze.util.Index
 import scala.reflect.ClassTag
 

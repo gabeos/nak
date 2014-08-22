@@ -38,7 +38,7 @@ object SVM {
    */
   def apply[L,T](data:Seq[Example[L,T]],numIterations:Int=1000)
               (implicit vspace: MutableVectorField[T, Double],
-                man: ClassTag[T]):Classifier[L,T] = {
+                man: ClassTag[T], ev: T <:< QuasiTensor[Int,Double]):Classifier[L,T] = {
 
     new SMOTrainer(numIterations).train(data)
   }
