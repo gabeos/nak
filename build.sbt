@@ -17,14 +17,15 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.scalanlp" %% "breeze" % "0.8.2-SNAPSHOT",
-  "org.scalanlp" %% "breeze-natives" % "0.8.2-SNAPSHOT",
+  "org.scalanlp" %% "breeze" % "0.10-SNAPSHOT",
+  "org.scalanlp" %% "breeze-natives" % "0.10-SNAPSHOT",
   "org.scalanlp" %% "breeze-config" % "0.8",
   "org.rogach" %% "scallop" % "0.9.5",
   "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
   "org.apache.logging.log4j" % "log4j-core" % "2.0-beta8",
   "org.scalacheck" %% "scalacheck" % "1.11.3" % "test",
-  "org.scalatest" %% "scalatest" % "2.2.0" % "test"
+  "org.scalatest" %% "scalatest" % "2.2.0" % "test",
+  "org.sameersingh.scalaplot" % "scalaplot" % "0.0.3"
 )
 
 publishTo <<= version { v: String =>
