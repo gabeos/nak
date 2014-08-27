@@ -1,17 +1,19 @@
 package nak.space.nca
 
+import java.awt.Color
+
 import breeze.linalg._
 import breeze.linalg.operators.OpMulMatrix
 import breeze.linalg.support.CanTranspose
 import breeze.math._
 import breeze.numerics._
 import breeze.optimize.{BatchDiffFunction, StochasticDiffFunction}
+import breeze.plot.Figure
 import breeze.stats.distributions.Rand
 import breeze.util.Isomorphism
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import nak.data.Example
 import nak.space.DMImplicits.projectedSquaredNorm
-import org.sameersingh.scalaplot.{LegendPosY, XYPlotStyle, XYSeries, XYData}
 
 import scala.reflect.ClassTag
 
@@ -50,6 +52,10 @@ object NCAObjectives extends LazyLogging {
       extends BatchDiffFunction[M] { outer =>
 
       import optspace._
+      val visualize = false
+      val fig = if (visualize) {
+        Some(new Figure("NCA features",1,2))
+      } else None
       val size = data.size
       val featureSize = dim(data.head.features)
       val features = data.map(_.features).toIndexedSeq
@@ -196,22 +202,43 @@ object NCAObjectives extends LazyLogging {
         val normNA = norm(-dA)
         val retVal = -value
 
-//        val visualize = true
-//        if (visualize == true) {
-//          import org.sameersingh.scalaplot.Implicits._
-//          val xInd1 = 0
-//          val yInd1 = 1
-//          val xInd2 = 2
-//          val yInd2 = 3
+        if (visualize) {
+          import breeze.plot._
+
+          val subplot0: Plot = fig.get.subplot(0)
+          val subplot1: Plot = fig.get.subplot(1)
+          println(s"0x: ${subplot0.xlim}")
+          println(s"0y: ${subplot0.ylim}")
+          println(s"1x: ${subplot1.xlim}")
+          println(s"1y: ${subplot1.ylim}")
+          val xInd1 = 0
+          val yInd1 = 1
+          val xInd2 = 2
+          val yInd2 = 3
+          val (bls, btfs) = batch.map(i => (labels(i),A * features(i))).unzip
+          val colors = CategoricalPaintScaleFactory()(bls).compose(bls)
+          val (x1,y1) = btfs.map(v => (v(xInd1),v(yInd1))).unzip
+          val (x2,y2) = btfs.map(v => (v(xInd2),v(yInd2))).unzip
+          val s1 = scatter(x1.toArray,y1.toArray,_ => 0.5,colors = colors)
+          val s2 = scatter(x2.toArray,y2.toArray,_ => 0.5,colors = colors)
+          val m1 = Seq(x1.max,y1.max).max
+          val m2 = Seq(x2.max,y2.max).max
+
+          fig.get.clearPlot(0)
+          fig.get.clearPlot(1)
+          subplot0 += s1
+          subplot1 += s2
+
 //          val lg1 = batch.groupBy(i => labels(i)).map({case (l,ii) => (l,ii.map(A * features(_)).map(v => (v(xInd1),v(yInd1))))})
 //          val lg2 = batch.groupBy(i => labels(i)).map({case (l,ii) => (l,ii.map(A * features(_)).map(v => (v(xInd2),v(yInd2))))})
 //
 //          val XYd1: XYData = lg1.map({case (l,xy) => XY(xy,label = l.toString,style = XYPlotStyle.Points)}).seq
 //          val XYd2: XYData = lg2.map({case (l,xy) => XY(xy,label = l.toString,style = XYPlotStyle.Points)}).seq
 //
+//          scatter()
 //          output(PNG("/home/gabeos/projects/imgs/",s"${xInd1}x${yInd1}_${iter}.png"),plot(XYd1,title = s"NCA {$xInd1 x $yInd1} - $iter"))
 //          output(PNG("/home/gabeos/projects/imgs/",s"${xInd2}x${yInd2}_${iter}.png"),plot(XYd1,title = s"NCA {$xInd2 x $yInd2} - $iter"))
-//        }
+        }
         iter += 1
         (-value, -dA)
       }

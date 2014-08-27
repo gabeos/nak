@@ -144,16 +144,18 @@ object NCA {
       this.iterations(f, init).last.x
     }
 
-    def iterations[T](f: NCABatchObjective[_,_,T], init: T)(implicit space: MutableFiniteCoordinateField[T, _, Double]): Iterator[FirstOrderMinimizer[T, BatchDiffFunction[T]]#State] = {
-      val it = (useStochasticBatches,useScanningBatches,useStochasticTruncatedSums,useScanningTruncatedSums) match {
-        case (true, false, false, false) => this.iterations(f.withRandomBatches(batchSize),init)(space)
-        case (false, true, false, false) => this.iterations(f.withScanningBatches(batchSize),init)(space)
-        case (false, false, true, false) => this.iterations(f.withRandomTruncatedSums(truncatedSumSize),init)(space)
-        case (false, false, false, true) => this.iterations(f.withScanningTruncatedSums(truncatedSumSize),init)(space)
-        case (true, false, true, false) => this.iterations(f.withRandomBatchAndSum(batchSize,truncatedSumSize),init)(space)
-        case (false, true, true, false) => this.iterations(f.withScanningBatchAndRandomSum(batchSize,truncatedSumSize),init)(space)
-        case (false, false, false, false) => this.iterations(f: DiffFunction[T],init)(space)
-        case _ => throw new UnsupportedOperationException("stochastic/scanning batch parameters aren't supported")
+    def iterations[T](f: NCABatchObjective[_, _, T], init: T)(implicit
+                                                              space: MutableFiniteCoordinateField[T, _, Double]): Iterator[FirstOrderMinimizer[T, BatchDiffFunction[T]]#State] = {
+      val it = (useStochasticBatches, useScanningBatches, useStochasticTruncatedSums, useScanningTruncatedSums) match {
+        case (true, false, false, false)  => this.iterations(f.withRandomBatches(batchSize), init)(space)
+        case (false, true, false, false)  => this.iterations(f.withScanningBatches(batchSize), init)(space)
+        case (false, false, true, false)  => this.iterations(f.withRandomTruncatedSums(truncatedSumSize), init)(space)
+        case (false, false, false, true)  => this.iterations(f.withScanningTruncatedSums(truncatedSumSize), init)(space)
+        case (true, false, true, false)   => this.iterations(f.withRandomBatchAndSum(batchSize, truncatedSumSize), init)(space)
+        case (false, true, true, false)   => this.iterations(f.withScanningBatchAndRandomSum(batchSize, truncatedSumSize),init)(space)
+        case (false, false, false, false) => this.iterations(f: DiffFunction[T], init)(space)
+        case _                            => throw new UnsupportedOperationException(
+          "stochastic/scanning batch parameters aren't supported")
       }
 
       it.asInstanceOf[Iterator[FirstOrderMinimizer[T, BatchDiffFunction[T]]#State]]
