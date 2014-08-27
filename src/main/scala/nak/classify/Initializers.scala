@@ -1,12 +1,11 @@
 package nak.classify
 
 import breeze.linalg._
-import breeze.math.{MutableOptimizationSpace}
+import breeze.math.MutableOptimizationSpace
 import breeze.numerics._
+import breeze.stats.distributions.Rand
 import breeze.storage.Zero
 import nak.data.Example
-
-import scala.reflect.ClassTag
 
 /**
  * nak
@@ -18,41 +17,63 @@ import scala.reflect.ClassTag
 object Initializers {
 
   trait Initializer[L, T, M] {
-    def init(data: Iterable[Example[L, T]])(implicit optspace: MutableOptimizationSpace[M,T,Double],
-                                            canDiag: diag.Impl[T,M]): M
+    def init(data: Iterable[Example[L, T]])
+            (implicit optspace: MutableOptimizationSpace[M, T, Double], canDiag: diag.Impl[T, M]): M = {
+      import optspace._
+      init(data, dim(data.head.features))
+    }
+
+    def init(data: Iterable[Example[L, T]], rowDim: Int)
+            (implicit optspace: MutableOptimizationSpace[M, T, Double], canDiag: diag.Impl[T, M]): M
   }
 
   trait ZeroInitializer[L, T, M] extends Initializer[L, T, M] {
-    override def init(data: Iterable[Example[L, T]])(implicit optspace: MutableOptimizationSpace[M,T,Double],
-                                                     canDiag: diag.Impl[T,M]): M = {
+    override def init(data: Iterable[Example[L, T]], rowDim: Int)
+                     (implicit optspace: MutableOptimizationSpace[M, T, Double], canDiag: diag.Impl[T, M]): M = {
       import optspace._
       val fSize = dim(data.head.features)
-      zeroM((fSize,fSize))
+      zeroM((rowDim, fSize))
     }
   }
 
-  trait GenericScaledDiagInitializer[L,T,M] extends Initializer[L,T,M] {
-    override def init(data: Iterable[Example[L,T]])(implicit optspace: MutableOptimizationSpace[M,T,Double],
-                                                    canDiag: diag.Impl[T,M]): M = {
+  trait GenericScaledDiagInitializer[L, T, M] extends Initializer[L, T, M] {
+    override def init(data: Iterable[Example[L, T]], rowDim: Int)
+                     (implicit optspace: MutableOptimizationSpace[M, T, Double], canDiag: diag.Impl[T, M]): M = {
       import optspace._
       val fSize = dim(data.head.features)
 
-      var maxes = Map.empty[Int,Double]
-      var mins = Map.empty[Int,Double]
+      var maxes = Map.empty[Int, Double]
+      var mins = Map.empty[Int, Double]
 
       for (ex <- data; (i, d) <- ex.features.activeIterator) {
-        if (d > maxes.getOrElse(i,Double.NegativeInfinity))
+        if (d > maxes.getOrElse(i, Double.NegativeInfinity))
           maxes = maxes + (i -> d)
-        if (d < mins.getOrElse(i,Double.PositiveInfinity))
+        if (d < mins.getOrElse(i, Double.PositiveInfinity))
           mins = mins + (i -> d)
       }
 
-      val dg = tabulateTensor(fSize,(i: Int) => {
-        val d = abs(maxes.getOrElse(i,0.0) - mins.getOrElse(i,0.0))
+      val dg = tabulateTensor(fSize, (i: Int) => {
+        val d = abs(maxes.getOrElse(i, 0.0) - mins.getOrElse(i, 0.0))
         if (d == 0.0) 0.0
         else 1.0 / d
       })
-      diag(dg)
+      var i = -1
+      tabulateTensorM((rowDim,fSize), {case (r: Int,c: Int) => {
+        if (c % rowDim == r) {
+          i += 1
+          dg(i)
+        } else 0.0
+      }})
+    }
+  }
+
+  trait RandomInitializer[L, T, M] extends Initializer[L, T, M] {
+    override def init(data: Iterable[Example[L, T]], rowDim: Int)
+                     (implicit optspace: MutableOptimizationSpace[M, T, Double],
+                      canDiag: diag.Impl[T, M]): M = {
+      import optspace._
+      val rand = Rand.uniform
+      tabulateTensorM((rowDim,dim(data.head.features)), (rc: (Int,Int)) => rand.get())
     }
   }
 

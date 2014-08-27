@@ -1,6 +1,7 @@
 package nak.classify
 
 import breeze.math.Field
+import breeze.stats.distributions.Rand
 import nak.space.DMImplicits
 import DMImplicits.euclidean
 import org.scalatest.FunSuite
@@ -56,10 +57,13 @@ trait DenseNearestNeighborTestHarness extends FunSuite {
       test.foldLeft(0)({case (iSum,ex) =>
         if (nnC.classify(ex.features) == ex.label) iSum + 1 else iSum}).toDouble / test.size
     }
-    val r = new Random(1)
-    val crossV = Datasets.crossValidate[Example[String,DenseVector[Double]],Double](k,r.shuffle(IrisData.denseClassification.toIndexedSeq))(testCV)
-    println(s"CrossValidation Results: $crossV")
+//    val res = Datasets.loocv(IrisData.denseClassification)(testCV)
+    val crossV = Datasets.crossValidate[Example[String,DenseVector[Double]],Double](k,IrisData.denseClassification)(testCV)
+    println(s"CrossValidation Results: $crossV from $trainer")
+//    val percLOOCVCorrect = res.sum / res.size
+//    println(s"LOOCV results: ${percLOOCVCorrect} from $trainer")
     assert(!crossV.exists(_ < 0.90))
+//    assert(percLOOCVCorrect > 0.90)
   }
 }
 
@@ -76,8 +80,7 @@ trait SparseNearestNeighborTestHarness extends FunSuite {
       test.foldLeft(0)({case (iSum,ex) =>
         if (nnC.classify(ex.features) == ex.label) iSum + 1 else iSum}).toDouble / test.size
     }
-    val r = new Random(1)
-    val crossV = Datasets.crossValidate[Example[String,SparseVector[Double]],Double](k,r.shuffle(IrisData.sparseClassification.toIndexedSeq))(testCV)
+    val crossV = Datasets.crossValidate[Example[String,SparseVector[Double]],Double](k,IrisData.sparseClassification)(testCV)
     println(s"CrossValidation Results: $crossV")
     assert(!crossV.exists(_ < 0.90))
   }
@@ -101,11 +104,13 @@ object PRMLData {
 object IrisData {
   val url = IrisData.getClass.getClassLoader.getResource("data/classify/iris.data")
   val dm = DataMatrix.fromURL[String](url,4,separator = ",")
+  val r = new Random(0)
+  val shuffledExamples = r.shuffle(dm.rows).toIndexedSeq
 
-  def sparseClassification: Seq[Example[String,SparseVector[Double]]] =
-    dm.rows.map(e => e.map(f => SparseVector(f.data)))
+  def sparseClassification: IndexedSeq[Example[String,SparseVector[Double]]] =
+    shuffledExamples.map(e => e.map(f => SparseVector(f.data)))
 
-  def denseClassification: Seq[Example[String,DenseVector[Double]]] = dm.rows
+  def denseClassification: IndexedSeq[Example[String,DenseVector[Double]]] = shuffledExamples
 
   val size = dm.rows.size
 }

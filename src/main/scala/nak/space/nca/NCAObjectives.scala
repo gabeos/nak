@@ -11,7 +11,7 @@ import breeze.util.Isomorphism
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import nak.data.Example
 import nak.space.DMImplicits.projectedSquaredNorm
-import org.sameersingh.scalaplot.{LegendPosY, XYPlotStyle, XYSeries, XYData}
+import org.sameersingh.scalaplot.{XYPlotStyle, XYData}
 
 import scala.reflect.ClassTag
 
@@ -127,13 +127,13 @@ object NCAObjectives extends LazyLogging {
               }).toArray)
             }})
 
-        val p_ij_indexed =
-          negativeProjDistanceCache.map({
-            case (i, nPDijs) =>
-              (i, nPDijs.map({
-                case (k, pik) =>
-                  (k, if (i == k) 0.0
-                      else exp(pik - softmaxNorms(reverseBatchIndex(i))))}))})
+//        val p_ij_indexed =
+//          negativeProjDistanceCache.map({
+//            case (i, nPDijs) =>
+//              (i, nPDijs.map({
+//                case (k, pik) =>
+//                  (k, if (i == k) 0.0
+//                      else exp(pik - softmaxNorms(reverseBatchIndex(i))))}))})
 
         val p_ij =
           negativeProjDistanceCache.map({
@@ -144,11 +144,11 @@ object NCAObjectives extends LazyLogging {
                   else exp(pik - softmaxNorms(reverseBatchIndex(i)))
               })})
 
-        val p_i = p_ij_indexed.map({case (i,nPijs) => nPijs.collect({case (k,pij) if labels(k) == labels(i) => pij}).sum})
-        val p_noti = p_ij_indexed.map({case (i,nPijs) => nPijs.collect({case (k,pij) if labels(k) != labels(i) => pij}).sum})
+//        val p_i = p_ij_indexed.map({case (i,nPijs) => nPijs.collect({case (k,pij) if labels(k) == labels(i) => pij}).sum})
+//        val p_noti = p_ij_indexed.map({case (i,nPijs) => nPijs.collect({case (k,pij) if labels(k) != labels(i) => pij}).sum})
         // Sanity checks
-        assert(p_ij.map(_.sum).forall(_ -1.0 < 1E-4), "Pijs don't sum to one")
-        assert(p_i.zip(p_noti).map(pnp => pnp._1 + pnp._2).forall(_ - 1.0 < 1E-4), "Pi + Pnoti != 1")
+//        assert(p_ij.map(_.sum).forall(_ -1.0 < 1E-4), "Pijs don't sum to one")
+//        assert(p_i.zip(p_noti).map(pnp => pnp._1 + pnp._2).forall(_ - 1.0 < 1E-4), "Pi + Pnoti != 1")
 
         def term(i: Int, j: Int): M = {
           val dift = features(batch(i)) - features(sumBatch(j))
@@ -174,7 +174,8 @@ object NCAObjectives extends LazyLogging {
           }
           f :*= p_ind
           f -= s
-          logger.debug(s"Completed iteration [$i / ${batch.size}] in ${timeToSecs(System.currentTimeMillis(),thisTime)}")
+          if (i % (batch.size / 5))
+            logger.debug(s"Completed iteration [$i / ${batch.size}] in ${timeToSecs(System.currentTimeMillis(),thisTime)}")
           (p_ind,f)
         }).unzip
         ctime = System.currentTimeMillis()
@@ -190,28 +191,28 @@ object NCAObjectives extends LazyLogging {
         logger.debug(s"Computed grad in ${timeToSecs(ctime,time)}")
         time = ctime
 
-        val dA = (A :* (2.0)) * gradRHS
+        val dA = (A :* 2.0) :* gradRHS
         logger.debug(s"Gradient (numActive): ${dA.activeValuesIterator.length}")
         logger.debug(s"Done! Val = $value, grad: ${norm(dA)}")
         val normNA = norm(-dA)
         val retVal = -value
 
-//        val visualize = true
-//        if (visualize == true) {
-//          import org.sameersingh.scalaplot.Implicits._
-//          val xInd1 = 0
-//          val yInd1 = 1
-//          val xInd2 = 2
-//          val yInd2 = 3
-//          val lg1 = batch.groupBy(i => labels(i)).map({case (l,ii) => (l,ii.map(A * features(_)).map(v => (v(xInd1),v(yInd1))))})
+        val visualize = true
+        if (visualize) {
+          import org.sameersingh.scalaplot.Implicits._
+          val xInd1 = 0
+          val yInd1 = 1
+          val xInd2 = 2
+          val yInd2 = 3
+          val lg1 = batch.groupBy(i => labels(i)).map({case (l,ii) => (l,ii.map(A * features(_)).map(v => (v(xInd1),v(yInd1))))})
 //          val lg2 = batch.groupBy(i => labels(i)).map({case (l,ii) => (l,ii.map(A * features(_)).map(v => (v(xInd2),v(yInd2))))})
-//
-//          val XYd1: XYData = lg1.map({case (l,xy) => XY(xy,label = l.toString,style = XYPlotStyle.Points)}).seq
+
+          val XYd1: XYData = lg1.map({case (l,xy) => XY(xy,label = l.toString,style = XYPlotStyle.Points)}).seq
 //          val XYd2: XYData = lg2.map({case (l,xy) => XY(xy,label = l.toString,style = XYPlotStyle.Points)}).seq
-//
-//          output(PNG("/home/gabeos/projects/imgs/",s"${xInd1}x${yInd1}_${iter}.png"),plot(XYd1,title = s"NCA {$xInd1 x $yInd1} - $iter"))
+
+          output(PNG("/home/gabeos/projects/imgs/",s"${xInd1}x${yInd1}_${iter}.png"),plot(XYd1,title = s"NCA {$xInd1 x $yInd1} - $iter"))
 //          output(PNG("/home/gabeos/projects/imgs/",s"${xInd2}x${yInd2}_${iter}.png"),plot(XYd1,title = s"NCA {$xInd2 x $yInd2} - $iter"))
-//        }
+        }
         iter += 1
         (-value, -dA)
       }
