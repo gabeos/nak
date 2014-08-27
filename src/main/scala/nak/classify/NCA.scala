@@ -99,7 +99,7 @@ class NCA[L, T, M](examples: Iterable[Example[L, T]], k: Int, A: M)(implicit vsp
 
 object NCA {
 
-  class Trainer[L, T, M](opt: NCAOptParams = NCAOptParams(), K: Int = 1)
+  class Trainer[L, T, M](opt: NCAOptParams = NCAOptParams())
                         (implicit optspace: MutableOptimizationSpace[M, T, Double],
                          mspace: MutableFiniteCoordinateField[M, (Int, Int), Double],
                          canDiag: diag.Impl[T, M])
@@ -113,7 +113,7 @@ object NCA {
       logger.info(s"Training NCA-kNN classifier with ${data.size} examples.")
 
       logger.info(s"Initializing NCA Transformation Matrix.")
-      val initial: M = init(data)
+      val initial: M = if (opt.dimension > 0) init(data, opt.dimension) else init(data)
       logger.debug(s"Initial value: \n$initial")
 
       logger.info(s"Initializing Batch Objective")
@@ -122,11 +122,13 @@ object NCA {
       val A = opt.minimize(df,initial)
 
       import optspace.mulMVV
-      new NCA[L, T, M](data, K, A)
+      new NCA[L, T, M](data, opt.K, A)
     }
   }
 
-  case class NCAOptParams(regularization: Double = 0.0,
+  case class NCAOptParams(K: Int = 1,
+                          dimension: Int = -1,
+                          regularization: Double = 0.0,
                           alpha: Double = 0.5,
                           maxIterations: Int = 1000,
                           useL1: Boolean = false,
