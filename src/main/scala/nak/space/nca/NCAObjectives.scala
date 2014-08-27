@@ -111,7 +111,6 @@ object NCAObjectives extends LazyLogging {
       def calculate(A: M, batch: IndexedSeq[Int]): (Double, M) = calculate(A,batch,fullRange)
 
       def calculate(A: M, batch: IndexedSeq[Int], sumBatch: IndexedSeq[Int]): (Double, M) = {
-        logger.debug(s"Calculating objective gradient and value for batch indices:\n$batch")
         val reverseBatchIndex = batch.zipWithIndex.toMap
 
         var time = System.currentTimeMillis()
@@ -180,7 +179,7 @@ object NCAObjectives extends LazyLogging {
           }
           f :*= p_ind
           f -= s
-          if (i % (batch.size / 5))
+          if (i % (batch.size / 5) == 0)
             logger.debug(s"Completed iteration [$i / ${batch.size}] in ${timeToSecs(System.currentTimeMillis(),thisTime)}")
           (p_ind,f)
         }).unzip
