@@ -1,5 +1,7 @@
 package nak.space.nca
 
+import java.io.File
+
 import breeze.linalg._
 import breeze.linalg.operators.OpMulMatrix
 import breeze.linalg.support.CanTranspose
@@ -45,9 +47,10 @@ object NCAObjectives extends LazyLogging {
 
   object Objectives {
 
-    class NCABatchObjective[L,T,M](data: Iterable[Example[L,T]])
-                                          (implicit optspace: MutableOptimizationSpace[M,T,Double]) 
-      extends BatchDiffFunction[M] { outer =>
+    class NCABatchObjective[L, T, M](data: Iterable[Example[L, T]], logGrad: Option[File] = None)
+                                    (implicit optspace: MutableOptimizationSpace[M, T, Double])
+      extends BatchDiffFunction[M] {
+      outer =>
 
       import optspace._
       val size = data.size
@@ -58,13 +61,18 @@ object NCAObjectives extends LazyLogging {
       var iter = 0
       private def projDistance(v1: T, v2: T, proj: M): Double = pow(norm(proj * (v1 - v2)), 2)
 
-      private def timeToSecs(current: Long, last: Long): Double = {
-        (current - last) / 1000.0
+      private def getTimeLogger = {
+        var ltime = System.currentTimeMillis()
+        (section: String) => {
+          val ctime = System.currentTimeMillis()
+          logger.debug(s"Calculated $section in ${(ctime - ltime) / 1000.0} s")
+          ltime = ctime
+        }
       }
 
       def withRandomTruncatedSums(size: Int): StochasticDiffFunction[M] = new StochasticDiffFunction[M] {
         val randBatch = Rand.subsetsOfSize(fullRange,size)
-        def calculate(A: M): (Double, M) = outer.calculate(A,fullRange,randBatch.get)
+        def calculate(A: M): (Double, M) = outer.calculate(A,fullRange,randBatch.draw())
       }
 
       def withScanningTruncatedSums(size: Int): StochasticDiffFunction[M] = new StochasticDiffFunction[M] {
@@ -83,7 +91,7 @@ object NCAObjectives extends LazyLogging {
           val randBatch = Rand.subsetsOfSize(fullRange, batchSize)
           val randSum   = Rand.subsetsOfSize(fullRange, sumSize)
 
-          def calculate(A: M): (Double, M) = outer.calculate(A, randBatch.draw, randSum.draw)
+          def calculate(A: M): (Double, M) = outer.calculate(A, randBatch.draw(), randSum.draw())
         }
 
       def withScanningBatchAndRandomSum(batchSize: Int, sumSize: Int): StochasticDiffFunction[M] =
@@ -99,34 +107,29 @@ object NCAObjectives extends LazyLogging {
 
           val randSum = Rand.subsetsOfSize(fullRange, sumSize)
 
-          def calculate(A: M): (Double, M) = outer.calculate(A, nextBatch, randSum.draw)
+          def calculate(A: M): (Double, M) = outer.calculate(A, nextBatch, randSum.draw())
         }
 
       def calculate(A: M, batch: IndexedSeq[Int]): (Double, M) = calculate(A,batch,fullRange)
 
       def calculate(A: M, batch: IndexedSeq[Int], sumBatch: IndexedSeq[Int]): (Double, M) = {
-        logger.debug(s"Calculating objective gradient and value for batch indices:\n$batch")
         val reverseBatchIndex = batch.zipWithIndex.toMap
+        val logTime = getTimeLogger
 
-        var time = System.currentTimeMillis()
-        logger.debug(s"Calculating cache...")
-        var ctime = System.currentTimeMillis()
-
+        logger.debug(s"Calculating objective...")
         // pre-compute negative projected distances
         val negativeProjDistanceCache =
           batch.par.map(i =>
             (i, sumBatch.par.map(k =>
-              (k, -projDistance(features(i), features(k), A))
-            )))
+              (k, -projDistance(features(i), features(k), A)))))
+        logTime("projected distance cache")
 
         val softmaxNorms =
           negativeProjDistanceCache.map({
-            case (i,nPDik) => {
+            case (ii,nPDik) =>
               softmax(nPDik.collect({
-                case (k, pik) if k != i => pik
-              }).toArray)
-            }})
-
+                case (k, pik) if k != ii => pik}).toArray)})
+        logTime("softmax normalizations")
 //        val p_ij_indexed =
 //          negativeProjDistanceCache.map({
 //            case (i, nPDijs) =>
@@ -137,12 +140,12 @@ object NCAObjectives extends LazyLogging {
 
         val p_ij =
           negativeProjDistanceCache.map({
-            case (i, nPDijs) =>
+            case (ii, nPDijs) =>
               nPDijs.map({
                 case (k, pik) =>
-                  if (i == k) 0.0
-                  else exp(pik - softmaxNorms(reverseBatchIndex(i)))
-              })})
+                  if (ii == k) 0.0
+                  else exp(pik - softmaxNorms(reverseBatchIndex(ii)))})})
+        logTime("pairwise probabilities")
 
 //        val p_i = p_ij_indexed.map({case (i,nPijs) => nPijs.collect({case (k,pij) if labels(k) == labels(i) => pij}).sum})
 //        val p_noti = p_ij_indexed.map({case (i,nPijs) => nPijs.collect({case (k,pij) if labels(k) != labels(i) => pij}).sum})
@@ -158,7 +161,7 @@ object NCAObjectives extends LazyLogging {
         }
 
         val (probs, elGrads) = (0 until batch.size).par.map(i => {
-          val thisTime = System.currentTimeMillis()
+          val threadTimeLogger = if (i % (batch.size / 5) == 0) Some(getTimeLogger) else None
           val f = zeroLikeM(A)
           val s = zeroLikeM(A)
           var p_ind = 0.0
@@ -174,45 +177,24 @@ object NCAObjectives extends LazyLogging {
           }
           f :*= p_ind
           f -= s
-          if (i % (batch.size / 5))
-            logger.debug(s"Completed iteration [$i / ${batch.size}] in ${timeToSecs(System.currentTimeMillis(),thisTime)}")
+          threadTimeLogger.foreach(_("one iteration of term computation"))
           (p_ind,f)
         }).unzip
-        ctime = System.currentTimeMillis()
-        logger.debug(s"Computed terms in ${timeToSecs(ctime,time)}")
-        time = ctime
+        logTime("terms")
 
         val value = probs.sum
-        ctime = System.currentTimeMillis()
-        logger.debug(s"Computed value in ${timeToSecs(ctime,time)}")
-        time = ctime
+        logTime("value summation")
         val gradRHS = elGrads.reduce(_ + _)
-        ctime = System.currentTimeMillis()
-        logger.debug(s"Computed grad in ${timeToSecs(ctime,time)}")
-        time = ctime
+        logTime("gradient summation")
 
         val dA = (A :* 2.0) :* gradRHS
-        logger.debug(s"Gradient (numActive): ${dA.activeValuesIterator.length}")
-        logger.debug(s"Done! Val = $value, grad: ${norm(dA)}")
-        val normNA = norm(-dA)
-        val retVal = -value
+        logger.debug(s"Number Active Elements in Grad: ${dA.activeValuesIterator.length}")
 
-        val visualize = true
-        if (visualize) {
-          import org.sameersingh.scalaplot.Implicits._
-          val xInd1 = 0
-          val yInd1 = 1
-          val xInd2 = 2
-          val yInd2 = 3
-          val lg1 = batch.groupBy(i => labels(i)).map({case (l,ii) => (l,ii.map(A * features(_)).map(v => (v(xInd1),v(yInd1))))})
-//          val lg2 = batch.groupBy(i => labels(i)).map({case (l,ii) => (l,ii.map(A * features(_)).map(v => (v(xInd2),v(yInd2))))})
+        logGrad.foreach(d => {
+          import breeze.util._
+          writeObject[M](new File(d, s"gradient-iter$iter"),A)
+        })
 
-          val XYd1: XYData = lg1.map({case (l,xy) => XY(xy,label = l.toString,style = XYPlotStyle.Points)}).seq
-//          val XYd2: XYData = lg2.map({case (l,xy) => XY(xy,label = l.toString,style = XYPlotStyle.Points)}).seq
-
-          output(PNG("/home/gabeos/projects/imgs/",s"${xInd1}x${yInd1}_${iter}.png"),plot(XYd1,title = s"NCA {$xInd1 x $yInd1} - $iter"))
-//          output(PNG("/home/gabeos/projects/imgs/",s"${xInd2}x${yInd2}_${iter}.png"),plot(XYd1,title = s"NCA {$xInd2 x $yInd2} - $iter"))
-        }
         iter += 1
         (-value, -dA)
       }
@@ -360,6 +342,23 @@ object NCAObjectives extends LazyLogging {
 //      override def fullRange: IndexedSeq[Int] = 0 until size
 //
 //    }
+//val visualize = true
+//    if (visualize) {
+//      import org.sameersingh.scalaplot.Implicits._
+//      val xInd1 = 0
+//      val yInd1 = 1
+//      val xInd2 = 2
+//      val yInd2 = 3
+//      val lg1 = batch.groupBy(i => labels(i)).map({case (l,ii) => (l,ii.map(A * features(_)).map(v => (v(xInd1),v(yInd1))))})
+//      //          val lg2 = batch.groupBy(i => labels(i)).map({case (l,ii) => (l,ii.map(A * features(_)).map(v => (v(xInd2),v(yInd2))))})
+//
+//      val XYd1: XYData = lg1.map({case (l,xy) => XY(xy,label = l.toString,style = XYPlotStyle.Points)}).seq
+//      //          val XYd2: XYData = lg2.map({case (l,xy) => XY(xy,label = l.toString,style = XYPlotStyle.Points)}).seq
+//
+//      output(PNG("/home/gabeos/projects/imgs/",s"${xInd1}x${yInd1}_${iter}.png"),plot(XYd1,title = s"NCA {$xInd1 x $yInd1} - $iter"))
+//      //          output(PNG("/home/gabeos/projects/imgs/",s"${xInd2}x${yInd2}_${iter}.png"),plot(XYd1,title = s"NCA {$xInd2 x $yInd2} - $iter"))
+//    }
+
   }
 
   object DenseObjectives {

@@ -1,6 +1,8 @@
 
 package nak.classify
 
+import java.io.File
+
 import breeze.collection.mutable.Beam
 import breeze.linalg.operators.OpMulMatrix
 import breeze.linalg.support.{CanTranspose, CanTraverseValues}
@@ -117,7 +119,7 @@ object NCA {
       logger.debug(s"Initial value: \n$initial")
 
       logger.info(s"Initializing Batch Objective")
-      val df = new Objectives.NCABatchObjective[L, T, M](data)
+      val df = new Objectives.NCABatchObjective[L, T, M](data,opt.gradientLogDir)
       logger.info(s"Optimizing NCA Matrix.")
       val A = opt.minimize(df,initial)
 
@@ -139,8 +141,10 @@ object NCA {
                           useStochasticTruncatedSums: Boolean = false,
                           useScanningTruncatedSums: Boolean = false,
                           truncatedSumSize: Int = 512,
-                          randomSeed: Int = 0) {
+                          randomSeed: Int = 0,
+                          gradientLogDir: Option[File] = None) {
     private implicit val random = new RandBasis(new ThreadLocalRandomGenerator(new MersenneTwister(randomSeed)))
+    gradientLogDir.foreach(f => require(f.isDirectory && f.canWrite, "File specified must be writable directory"))
 
     def minimize[T](f: NCABatchObjective[_,_,T], init: T)(implicit space: MutableFiniteCoordinateField[T, _, Double]): T = {
       this.iterations(f, init).last.x
