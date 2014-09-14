@@ -25,7 +25,7 @@ libraryDependencies ++= Seq(
   "org.apache.logging.log4j" % "log4j-core" % "2.0-beta8",
   "org.scalacheck" %% "scalacheck" % "1.11.3" % "test",
   "org.scalatest" %% "scalatest" % "2.2.0" % "test",
-  "org.sameersingh.scalaplot" % "scalaplot" % "0.0.3"
+  "org.scalanlp" %% "breeze-viz" % "0.8-SNAPSHOT"
 )
 
 publishTo <<= version { v: String =>
