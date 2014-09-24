@@ -1,5 +1,8 @@
 package nak.data
 
+import nak.serialization.DataSerialization
+import nak.serialization.DataSerialization.{Input, Output, ReadWritable}
+
 /*
  Copyright 2009 David Hall, Daniel Ramage
  
@@ -80,6 +83,21 @@ object Example {
    */
   def lift[T,U,L](f: T=>U) = (o : Example[L,T]) => o.map(f)
 
+  implicit def exReadWritable[L,T](implicit formatL: DataSerialization.ReadWritable[L], formatT: DataSerialization.ReadWritable[T]) =
+    new DataSerialization.ReadWritable[Example[L,T]] {
+      def read(source: Input): Example[L, T] = {
+        val id = DataSerialization.read[String](source)
+        val label = DataSerialization.read[L](source)
+        val features = DataSerialization.read[T](source)
+        Example(label,features,id)
+      }
+
+      def write(sink: Output, what: Example[L, T]): Unit = {
+        DataSerialization.write(sink,what.id)
+        DataSerialization.write(sink,what.label)
+        DataSerialization.write(sink,what.features)
+      }
+    }
 }
 
 

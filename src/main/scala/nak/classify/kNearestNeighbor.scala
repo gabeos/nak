@@ -2,6 +2,8 @@ package nak.classify
 
 import nak.data.Example
 import breeze.generic.UFunc.UImpl2
+import nak.serialization.DataSerialization
+import nak.serialization.DataSerialization._
 import scala.collection.mutable
 import breeze.storage.Zero
 import breeze.linalg._
@@ -14,22 +16,22 @@ import breeze.collection.mutable.Beam
  *
  *
  */
-class kNearestNeighbor[L, T, D](c: Iterable[Example[L, T]],
-                                k: Int = 1)(implicit dm: UImpl2[D, T, T, Double]) extends Classifier[L, T] {
+class kNearestNeighbor[L, T, D](val examples: Iterable[Example[L, T]],
+                                val k: Int = 1)(implicit dm: UImpl2[D, T, T, Double]) extends Classifier[L, T] {
 
 
   // Iterable of (example, distance) tuples
   type DistanceResult = Iterable[(Example[L,T],Double)]
 
   def testLOO(): Double = {
-    val indexedExamples = c.zipWithIndex
+    val indexedExamples = examples.zipWithIndex
     indexedExamples.map({case (ex,i) =>
       val beam = Beam[(L, Double)](k)(Ordering.by(-(_: (_, Double))._2))
       beam ++= indexedExamples.
                withFilter(_._2 != i).
                map({ case (e,j) => (e.label, dm(e.features, ex.features))})
       beam.groupBy(_._1).maxBy(_._2.size)._1 == ex.label
-    }).count(identity).toDouble / c.size
+    }).count(identity).toDouble / examples.size
   }
 
   /*
@@ -37,7 +39,7 @@ class kNearestNeighbor[L, T, D](c: Iterable[Example[L, T]],
    */
   def distances(o: T): DistanceResult = {
     val beam = Beam[(Example[L,T], Double)](k)(Ordering.by(-(_: (_, Double))._2))
-    beam ++= c.map(e => (e, dm(e.features, o)))
+    beam ++= examples.map(e => (e, dm(e.features, o)))
   }
 
   /** For the observation, return the max voting label with prob = 1.0
@@ -48,7 +50,7 @@ class kNearestNeighbor[L, T, D](c: Iterable[Example[L, T]],
     val beam = Beam[(L, Double)](k)(Ordering.by(-(_: (_, Double))._2))
 
     // Add all examples to beam, tracking label and distance from testing point
-    beam ++= c.map(e => (e.label, dm(e.features, o)))
+    beam ++= examples.map(e => (e.label, dm(e.features, o)))
 
     // Max voting classification rule
     val predicted = beam.groupBy(_._1).maxBy(_._2.size)._1
@@ -65,5 +67,21 @@ object kNearestNeighbor {
 
     override def train(data: Iterable[Example[L, T]]): MyClassifier = new kNearestNeighbor[L, T, D](data, k)
   }
+
+  implicit def kNNReadWritable[L, T, D](implicit formatL: DataSerialization.ReadWritable[L], dm: UImpl2[D,T,T,Double],
+                                        formatT: DataSerialization.ReadWritable[T]) =
+    new ReadWritable[kNearestNeighbor[L, T, D]] {
+      def read(source: Input): kNearestNeighbor[L, T, D] = {
+        val k = source.readInt()
+        val ex = DataSerialization.read[Iterable[Example[L,T]]](source)(DataSerialization.iterableReadWritable[Example[L,T]](Example.exReadWritable[L,T]))
+        new kNearestNeighbor[L,T,D](ex,k)
+      }
+
+      def write(sink: Output, what: kNearestNeighbor[L, T, D]): Unit = {
+        DataSerialization.write(sink,what.k)
+        DataSerialization.write(sink,what.examples)
+      }
+    }
+
 
 }

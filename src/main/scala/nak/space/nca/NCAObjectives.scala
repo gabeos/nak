@@ -13,7 +13,6 @@ import breeze.util.Isomorphism
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import nak.data.Example
 import nak.space.DMImplicits.projectedSquaredNorm
-import org.sameersingh.scalaplot.{XYPlotStyle, XYData}
 
 import scala.reflect.ClassTag
 

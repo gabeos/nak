@@ -39,13 +39,11 @@ object Perceptron {
 
   class AveragedTrainer[L, T](maxPasses: Int = 20)
                              (implicit vspace: MutableVectorField[T, Double],
-                              man: ClassTag[T]) extends Classifier.Trainer[L, T] {
+                              man: ClassTag[T]) extends Trainer[L, T] {
 
     import vspace._
 
-    type MyClassifier = LinearClassifier[L, UnindexedLFMatrix[L, T], Counter[L, Double], T]
-
-    def train(data: Iterable[Example[L, T]]) = {
+    override def train(data: Iterable[Example[L, T]]) = {
       val labelIndex = Index(data.map(_.label))
       val weights = new LFMatrix[L, T](zeroLike(data.head.features), labelIndex)
       val avgWeights = new LFMatrix[L, T](zeroLike(data.head.features), labelIndex)

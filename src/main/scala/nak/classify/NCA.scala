@@ -15,6 +15,8 @@ import breeze.stats.distributions.{ThreadLocalRandomGenerator, RandBasis}
 import com.typesafe.scalalogging.slf4j.LazyLogging
 import nak.classify.Initializers._
 import nak.data.Example
+import nak.serialization.DataSerialization
+import nak.serialization.DataSerialization.{Input, Output, ReadWritable}
 import nak.space.DMImplicits
 import DMImplicits.decomposedMahalanobis
 import nak.space.nca.NCAObjectives.Objectives.NCABatchObjective
@@ -31,7 +33,7 @@ import scala.reflect.ClassTag
  *
  *
  */
-class NCA[L, T, M](examples: Iterable[Example[L, T]], k: Int, A: M)(implicit vspace: MutableInnerProductModule[T, Double],
+class NCA[L, T, M](val examples: Iterable[Example[L, T]],val k: Int, A: M)(implicit vspace: MutableInnerProductModule[T, Double],
                                                                     opMulMT: OpMulMatrix.Impl2[M, T, T]) extends Classifier[L, T] {
 
   import vspace._
@@ -127,6 +129,25 @@ object NCA {
       new NCA[L, T, M](data, opt.K, A)
     }
   }
+
+  implicit def ncaReadWritable[L, T, M](implicit formatL: DataSerialization.ReadWritable[L], //formatE: DataSerialization.ReadWritable[Example[L,T]],
+                                        formatT: DataSerialization.ReadWritable[T],
+                                        formatM: DataSerialization.ReadWritable[M], man: Manifest[M], vspace: MutableInnerProductModule[T, Double],
+                                        opMulMT: OpMulMatrix.Impl2[M, T, T]) =
+    new ReadWritable[NCA[L, T, M]] {
+      def read(source: Input): NCA[L, T, M] = {
+        val k = source.readInt()
+        val proj = DataSerialization.read[M](source)
+        val ex = DataSerialization.read[Iterable[Example[L,T]]](source)(DataSerialization.iterableReadWritable[Example[L,T]](Example.exReadWritable[L,T]))
+        new NCA(ex,k,proj)
+      }
+
+      def write(sink: Output, what: NCA[L, T, M]): Unit = {
+        DataSerialization.write(sink,what.k)
+        DataSerialization.write(sink,what.projection)
+        DataSerialization.write(sink,what.examples)
+      }
+    }
 
   case class NCAOptParams(K: Int = 1,
                           dimension: Int = -1,

@@ -159,18 +159,6 @@ object SerializationFormat {
     protected def writeTupleEnd(out : Output) =
       { /* do nothing */ }
 
-    /** Standard collection types. */
-    protected def collectionFromElements
-    [T:ReadWritable,CC[T]<:Iterable[T]]
-    (c: GenericCompanion[CC], name : String)
-    = new ReadWritable[CC[T]] {
-      def read(source : Input) =
-        readBuildable[T,CC[T]](source, c.newBuilder[T]);
-
-      def write(sink : Output, coll : CC[T]) =
-        writeIterable[T,CC[T]](sink, coll, name);
-    }
-
     /** Map collection types. */
     protected def collectionFromElements
     [K:ReadWritable,V:ReadWritable,CC[K,V]<:Map[K,V] with MapLike[K,V,CC[K,V]]]
@@ -181,6 +169,18 @@ object SerializationFormat {
 
       def write(sink : Output, coll : CC[K,V]) =
         writeIterable[(K,V),CC[K,V]](sink, coll, name);
+    }
+
+    /** Standard collection types. */
+    protected def collectionFromElements
+    [T:ReadWritable,CC[T]<:Iterable[T]]
+    (c: GenericCompanion[CC], name : String)
+    = new ReadWritable[CC[T]] {
+      def read(source : Input) =
+        readBuildable[T,CC[T]](source, c.newBuilder[T]);
+
+      def write(sink : Output, coll : CC[T]) =
+        writeIterable[T,CC[T]](sink, coll, name);
     }
 
     implicit def tuple2ReadWritable[T1,T2]

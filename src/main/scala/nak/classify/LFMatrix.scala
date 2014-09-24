@@ -313,4 +313,19 @@ object UnindexedLFMatrix {
       }
     }
   }
+
+  implicit def ulfReadWritable[L,TF](implicit formatL: DataSerialization.ReadWritable[L],
+                                    formatTF: DataSerialization.ReadWritable[TF],
+                                    zeros: CanCreateZerosLike[TF,TF], man: Manifest[TF]) = {
+    new ReadWritable[UnindexedLFMatrix[L,TF]] {
+      def write(sink: DataSerialization.Output, what: UnindexedLFMatrix[L,TF]) = {
+        DataSerialization.write(sink, what.indexed)
+      }
+
+      def read(source: DataSerialization.Input) = {
+        val lfm = DataSerialization.read[LFMatrix[L,TF]](source)
+        new UnindexedLFMatrix[L,TF](lfm)
+      }
+    }
+  }
 }

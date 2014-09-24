@@ -143,7 +143,7 @@ with ByteSerialization {
   //
 
   implicit object ByteArrayReadWritable extends ReadWritable[Array[Byte]] {
-    override def read(in : DataInput) = {
+    override def read(in : Input) = {
       var rv = new Array[Byte](in.readInt)
       var i = 0
       while (i < rv.length) {
@@ -164,7 +164,7 @@ with ByteSerialization {
   }
 
   implicit object IntArrayReadWritable extends ReadWritable[Array[Int]] {
-    override def read(in : DataInput) = {
+    override def read(in : Input) = {
       var rv = new Array[Int](in.readInt)
       var i = 0
       while (i < rv.length) {
@@ -185,8 +185,8 @@ with ByteSerialization {
   }
 
   implicit def ArrayReadWritable[T:ReadWritable:ClassTag] = new ReadWritable[Array[T]] {
-    override def read(in : DataInput) = {
-      var rv = new Array[T](in.readInt)
+    override def read(in : Input) = {
+      val rv = new Array[T](in.readInt)
       var i = 0
       while (i < rv.length) {
         rv(i) = DataSerialization.read[T](in)
@@ -207,7 +207,7 @@ with ByteSerialization {
 
   import breeze.linalg._
   implicit object DenseVectorReadWritable extends ReadWritable[DenseVector[Double]] {
-    override def read(in : DataInput) =  {
+    override def read(in : Input) =  {
       val offset = DataSerialization.read[Int](in)
       val stride = DataSerialization.read[Int](in)
       val length = DataSerialization.read[Int](in)
@@ -224,7 +224,7 @@ with ByteSerialization {
   }
 
   implicit object DenseMatrixReadWritable extends ReadWritable[DenseMatrix[Double]] {
-    override def read(in : DataInput) =  {
+    override def read(in : Input) =  {
       val rows = DataSerialization.read[Int](in)
       val cols = DataSerialization.read[Int](in)
       new DenseMatrix(rows,cols, DataSerialization.read[Array[Double]](in))
@@ -238,7 +238,7 @@ with ByteSerialization {
   }
 
   implicit object SparseArrayReadWritable extends ReadWritable[SparseArray[Double]] {
-    override def read(in : DataInput) = {
+    override def read(in : Input) = {
       val size = in.readInt()
       val used = in.readInt()
       val index = DataSerialization.read[Array[Int]](in)
@@ -246,7 +246,7 @@ with ByteSerialization {
       new SparseArray[Double](index,data,used,size,used)
     }
 
-    override def write(out : DataOutput, v : SparseArray[Double]) {
+    override def write(out : Output, v : SparseArray[Double]) {
       out.writeInt(v.size)
       out.writeInt(v.activeSize)
       DataSerialization.write(out,v.index)
@@ -254,24 +254,43 @@ with ByteSerialization {
     }
   }
 
-  /*
+
   implicit object SparseVectorReadWritable extends ReadWritable[SparseVector[Double]] {
-    override def read(in : DataInput) = {
+    override def read(in : Input) = {
       val data = DataSerialization.read[SparseArray[Double]](in)
       new SparseVector[Double](data)
     }
-
-    override def write(out : DataOutput, v : SparseVector[Double]) {
-      DataSerialization.write(out,v.data)
+    override def write(out : Output, v : SparseVector[Double]) {
+      DataSerialization.write(out,v.array)
     }
   }
-  */
+
+  implicit object CSCMatrixReadWritable extends ReadWritable[CSCMatrix[Double]] {
+    def read(source: Input): CSCMatrix[Double] = {
+      val used = source.readInt()
+      val rows = source.readInt()
+      val cols = source.readInt()
+      val data = DataSerialization.read[Array[Double]](source)
+      val colPtrs = DataSerialization.read[Array[Int]](source)
+      val rowIndices = DataSerialization.read[Array[Int]](source)
+      new CSCMatrix[Double](data,rows,cols,colPtrs,used,rowIndices)
+    }
+
+    def write(sink: Output, what: CSCMatrix[Double]): Unit = {
+      sink.writeInt(what.activeSize)
+      sink.writeInt(what.rows)
+      sink.writeInt(what.cols)
+      DataSerialization.write(sink,what.data)
+      DataSerialization.write(sink,what.colPtrs)
+      DataSerialization.write(sink,what.rowIndices)
+    }
+  }
 
   /**
    * Uses Java serialization.
    */
   def naiveReadWritable[T] = new ReadWritable[T] {
-    def read(in: DataInput) = {
+    def read(in: Input) = {
       val ba = ByteArrayReadWritable read in
       val oin = new ObjectInputStream(new ByteArrayInputStream(ba))
       val x = oin.readObject().asInstanceOf[T]
@@ -279,7 +298,7 @@ with ByteSerialization {
       x
     }
 
-    def write(out: DataOutput, x: T) {
+    def write(out: Output, x: T) {
       val bout = new ByteArrayOutputStream()
       val oout = new ObjectOutputStream(bout)
       oout.writeObject(x)
