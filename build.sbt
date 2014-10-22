@@ -26,8 +26,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
   "org.apache.logging.log4j" % "log4j-core" % "2.0-beta8",
   "org.scalacheck" %% "scalacheck" % "1.11.3" % "test",
-  "org.scalatest" %% "scalatest" % "2.2.0" % "test",
-  "org.scalanlp" %% "breeze-viz" % "0.8-SNAPSHOT"
+  "org.scalatest" %% "scalatest" % "2.2.0" % "test"
 )
 
 publishTo <<= version { v: String =>

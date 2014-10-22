@@ -5,7 +5,7 @@ import breeze.linalg._
 import breeze.linalg.operators.{OpMulMatrix, OpMulInner, OpNeg, OpType}
 import breeze.linalg.support.CanTraverseValues.ValuesVisitor
 import breeze.linalg.support._
-import breeze.math.{Semiring, Field, MutableFiniteCoordinateField}
+import breeze.math.{MutableCoordinateField, Semiring, Field, MutableFiniteCoordinateField}
 import breeze.storage.Zero
 import breeze.util._
 
@@ -274,11 +274,11 @@ object DataFrame {
         Encoder.fromIndex(v.rowIndex).decode(_uMul(v.underlying,v2))
       }
     }
-
-  implicit def space[RL,CL,M,S](implicit uspace: MutableFiniteCoordinateField[M,(Int,Int),S],
-                                man: ClassTag[S], zero: Zero[S], matEv: M <:< Matrix[S])
-  : MutableFiniteCoordinateField[DataFrame[RL,CL,M,S],(Int,Int),S] = {
-    import uspace._
-    MutableFiniteCoordinateField.make[DataFrame[RL,CL,M,S],(Int,Int),S]
-  }
+//
+//  implicit def space[RL,CL,M,S](implicit uspace: MutableCoordinateField[M,S],
+//                                man: ClassTag[S], zero: Zero[S], matEv: M <:< Matrix[S])
+//  : MutableCoordinateField[DataFrame[RL,CL,M,S],S] = {
+//    import uspace._
+//    MutableCoordinateField.make[DataFrame[RL,CL,M,S],S]
+//  }
 }
