@@ -67,4 +67,10 @@ class ConfusionMatrix[L] private (private val classWise: Map[L,Map[L,Int]]) {
 
 object ConfusionMatrix {
   def apply[L]():ConfusionMatrix[L] = new ConfusionMatrix[L]
+
+
+  def apply[L](guessed: Seq[L], gold: Seq[L]):ConfusionMatrix[L] = {
+    require(guessed.length == gold.length)
+    (ConfusionMatrix[L]() /: (guessed.iterator zip gold.iterator)) {_+_}
+  }
 }

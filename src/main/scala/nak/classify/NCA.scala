@@ -33,73 +33,69 @@ import scala.reflect.ClassTag
  *
  *
  */
-class NCA[L, T, M](val examples: Iterable[Example[L, T]],val k: Int, A: M)(implicit vspace: MutableInnerProductModule[T, Double],
-                                                                    opMulMT: OpMulMatrix.Impl2[M, T, T]) extends Classifier[L, T] {
-
-  import vspace._
-
-  // Iterable of (example, distance) tuples
-  type DistanceResult = Iterable[(Example[L, T], Double)]
-
-  val projection = A
-
-  def testLOO(): Double = {
-    val indexedExamples = examples.zipWithIndex
-    indexedExamples.map({
-      case (ex, i) =>
-        val beam = Beam[(L, Double)](k)(Ordering.by(-(_: (_, Double))._2))
-        beam ++= indexedExamples.
-          withFilter(_._2 != i).
-          map({ case (e, j) => (e.label, {
-          val tF = opMulMT(A,e.features)
-          val tO = opMulMT(A,ex.features)
-          val diff = subVV(tF,tO)
-          diff dot diff
-          //      (A * e.features) - (A * o)
-        })})
-        beam.groupBy(_._1).maxBy(_._2.size)._1 == ex.label
-    }).count(identity _).toDouble / examples.size
-  }
-
-  /*
-   * Additional method to extract distances of k nearest neighbors
-   */
-  def distances(o: T): DistanceResult = {
-    val beam = Beam[(Example[L, T], Double)](k)(Ordering.by(-(_: (_, Double))._2))
-    beam ++= examples.par.map(e => (e, {
-      val tF = opMulMT(A,e.features)
-      val tO = opMulMT(A,o)
-      val diff = subVV(tF,tO)
-      diff dot diff
-//      (A * e.features) - (A * o)
-    })).seq
-//    beam ++= examples.par.map(e => (e, decomposedMahalanobis(e.features, o, A))).seq
-  }
-
-  /** For the observation, return the max voting label with prob = 1.0
-    */
-  override def scores(o: T): Counter[L, Double] = {
-    // Beam reverses ordering from min heap to max heap, but we want min heap
-    // since we are tracking distances, not scores.
-    val beam = Beam[(L, Double)](k)(Ordering.by(-(_: (_, Double))._2))
-
-    // Add all examples to beam, tracking label and distance from testing point
-    beam ++= examples.map(e => (e.label, {
-      val tF = opMulMT(A,e.features)
-      val tO = opMulMT(A,o)
-      val diff = subVV(tF,tO)
-      diff dot diff
-      //      (A * e.features) - (A * o)
-    }))
-
-    // Max voting classification rule
-    val predicted = beam.groupBy(_._1).maxBy(_._2.size)._1
-
-    // Degenerate discrete distribution with prob = 1.0 at predicted label
-    Counter((predicted, 1.0))
-  }
-
-}
+//class NCA[L, T, M](val examples: Iterable[Example[L, T]],val k: Int, A: M)(implicit vspace: MutableInnerProductModule[T, Double],
+//                                                                    opMulMT: OpMulMatrix.Impl2[M, T, T]) extends kNNClassifier[L, T] {
+//
+//  import vspace._
+//
+//  val projection = A
+//
+//  def testLOO(): Double = {
+//    val indexedExamples = examples.zipWithIndex
+//    indexedExamples.map({
+//      case (ex, i) =>
+//        val beam = Beam[(L, Double)](k)(Ordering.by(-(_: (_, Double))._2))
+//        beam ++= indexedExamples.
+//          withFilter(_._2 != i).
+//          map({ case (e, j) => (e.label, {
+//          val tF = opMulMT(A,e.features)
+//          val tO = opMulMT(A,ex.features)
+//          val diff = subVV(tF,tO)
+//          diff dot diff
+//          //      (A * e.features) - (A * o)
+//        })})
+//        beam.groupBy(_._1).maxBy(_._2.size)._1 == ex.label
+//    }).count(identity _).toDouble / examples.size
+//  }
+//
+//  /*
+//   * Additional method to extract distances of k nearest neighbors
+//   */
+//  def distances(o: T): DistanceResult = {
+//    val beam = Beam[(Example[L, T], Double)](k)(Ordering.by(-(_: (_, Double))._2))
+//    beam ++= examples.par.map(e => (e, {
+//      val tF = opMulMT(A,e.features)
+//      val tO = opMulMT(A,o)
+//      val diff = subVV(tF,tO)
+//      diff dot diff
+////      (A * e.features) - (A * o)
+//    })).seq
+////    beam ++= examples.par.map(e => (e, decomposedMahalanobis(e.features, o, A))).seq
+//  }
+//
+//  /** For the observation, return the max voting label with prob = 1.0
+//    */
+//  override def scores(o: T): Counter[L, Double] = {
+//    // Beam reverses ordering from min heap to max heap, but we want min heap
+//    // since we are tracking distances, not scores.
+//    val beam = Beam[(L, Double)](k)(Ordering.by(-(_: (_, Double))._2))
+//
+//    // Add all examples to beam, tracking label and distance from testing point
+//    beam ++= examples.map(e => (e.label, {
+//      val tF = opMulMT(A,e.features)
+//      val tO = opMulMT(A,o)
+//      val diff = subVV(tF,tO)
+//      diff dot diff
+//      //      (A * e.features) - (A * o)
+//    }))
+//
+//    // Max voting classification rule
+//    val predicted = beam.groupBy(_._1).maxBy(_._2.size)._1
+//
+//    // Degenerate discrete distribution with prob = 1.0 at predicted label
+//    Counter((predicted, 1.0))
+//  }
+//}
 
 object NCA {
 
@@ -109,7 +105,7 @@ object NCA {
                          canDiag: diag.Impl[T, M])
     extends Classifier.Trainer[L, T] with LazyLogging {
     self: Initializer[L, T, M] =>
-    type MyClassifier = NCA[L, T, M]
+    type MyClassifier = MahalanobisKNN[L, T, M]
 
     logger.info(s"Initializing NCA Trainer with OptParams: $opt")
 
@@ -126,28 +122,11 @@ object NCA {
       val A = opt.minimize(df,initial)
 
       import optspace.mulMVV
-      new NCA[L, T, M](data, opt.K, A)
+      new MahalanobisKNN[L, T, M](data, opt.K, A)
     }
   }
 
-  implicit def ncaReadWritable[L, T, M](implicit formatL: DataSerialization.ReadWritable[L], //formatE: DataSerialization.ReadWritable[Example[L,T]],
-                                        formatT: DataSerialization.ReadWritable[T],
-                                        formatM: DataSerialization.ReadWritable[M], man: Manifest[M], vspace: MutableInnerProductModule[T, Double],
-                                        opMulMT: OpMulMatrix.Impl2[M, T, T]) =
-    new ReadWritable[NCA[L, T, M]] {
-      def read(source: Input): NCA[L, T, M] = {
-        val k = source.readInt()
-        val proj = DataSerialization.read[M](source)
-        val ex = DataSerialization.read[Iterable[Example[L,T]]](source)(DataSerialization.iterableReadWritable[Example[L,T]](Example.exReadWritable[L,T]))
-        new NCA(ex,k,proj)
-      }
 
-      def write(sink: Output, what: NCA[L, T, M]): Unit = {
-        DataSerialization.write(sink,what.k)
-        DataSerialization.write(sink,what.projection)
-        DataSerialization.write(sink,what.examples)
-      }
-    }
 
   case class NCAOptParams(K: Int = 1,
                           dimension: Int = -1,
@@ -202,53 +181,53 @@ object NCA {
       else (new LBFGS[T](maxIterations, 5, tolerance=tolerance)(space)).iterations(DiffFunction.withL2Regularization(f,regularization),init)
     }
   }
-
-  class DenseTrainer[L](opt: OptParams = OptParams(), K: Int = 1)
-                       (implicit vspace: MutableInnerProductModule[DenseVector[Double], Double],
-                        canTraverse: CanTraverseValues[DenseVector[Double], Double],
-                        man: ClassTag[DenseVector[Double]]) extends Classifier.Trainer[L, DenseVector[Double]] with LazyLogging {
-    self: DenseInitializer[L, DenseMatrix[Double]] =>
-
-    override type MyClassifier = NCA[L, DenseVector[Double], DenseMatrix[Double]]
-
-    override def train(data: Iterable[Example[L, DenseVector[Double]]]): MyClassifier = {
-      logger.debug(s"Training NCA-kNN classifier with ${data.size} examples.")
-
-      logger.debug(s"Initializing NCA Transformation Matrix.")
-      val initial: DenseMatrix[Double] = init(data)
-
-      logger.debug(s"Initializing Batch Objective")
-      val df = new DenseObjectives.NCABatchObjective[L](data)
-
-      implicit val mvIso = new Iso_DM_DV(initial.rows, initial.cols)
-
-      logger.debug(s"Optimizing NCA Matrix.")
-      val A: DenseMatrix[Double] = mvIso.backward(opt.minimize(df.throughLens[DenseVector[Double]], mvIso.forward(initial)))
-
-      new NCA[L, DenseVector[Double], DenseMatrix[Double]](data, K, A)
-    }
-  }
-
-  class SparseTrainer[L](opt: OptParams = OptParams(), K: Int = 1)
-                        (implicit vspace: MutableInnerProductModule[SparseVector[Double], Double],
-                         canTraverse: CanTraverseValues[SparseVector[Double], Double],
-                         man: ClassTag[SparseVector[Double]]) extends Classifier.Trainer[L, SparseVector[Double]] {
-    self: CSCInitializer[L, CSCMatrix[Double]] =>
-
-    override type MyClassifier = NCA[L, SparseVector[Double], CSCMatrix[Double]]
-
-    override def train(data: Iterable[Example[L, SparseVector[Double]]]): MyClassifier = {
-
-      val initial: CSCMatrix[Double] = init(data)
-
-      val df = new SparseObjectives.NCASparseBatchObjective[L](data)
-
-      implicit val mvIso = new Iso_CSC_SV(initial.rows, initial.cols)
-
-      val A: CSCMatrix[Double] = mvIso.backward(opt.minimize(df.throughLens[SparseVector[Double]], mvIso.forward(initial)))
-
-      new NCA[L, SparseVector[Double], CSCMatrix[Double]](data, K, A)
-    }
-  }
+//
+//  class DenseTrainer[L](opt: OptParams = OptParams(), K: Int = 1)
+//                       (implicit vspace: MutableInnerProductModule[DenseVector[Double], Double],
+//                        canTraverse: CanTraverseValues[DenseVector[Double], Double],
+//                        man: ClassTag[DenseVector[Double]]) extends Classifier.Trainer[L, DenseVector[Double]] with LazyLogging {
+//    self: DenseInitializer[L, DenseMatrix[Double]] =>
+//
+//    override type MyClassifier = NCA[L, DenseVector[Double], DenseMatrix[Double]]
+//
+//    override def train(data: Iterable[Example[L, DenseVector[Double]]]): MyClassifier = {
+//      logger.debug(s"Training NCA-kNN classifier with ${data.size} examples.")
+//
+//      logger.debug(s"Initializing NCA Transformation Matrix.")
+//      val initial: DenseMatrix[Double] = init(data)
+//
+//      logger.debug(s"Initializing Batch Objective")
+//      val df = new DenseObjectives.NCABatchObjective[L](data)
+//
+//      implicit val mvIso = new Iso_DM_DV(initial.rows, initial.cols)
+//
+//      logger.debug(s"Optimizing NCA Matrix.")
+//      val A: DenseMatrix[Double] = mvIso.backward(opt.minimize(df.throughLens[DenseVector[Double]], mvIso.forward(initial)))
+//
+//      new NCA[L, DenseVector[Double], DenseMatrix[Double]](data, K, A)
+//    }
+//  }
+//
+//  class SparseTrainer[L](opt: OptParams = OptParams(), K: Int = 1)
+//                        (implicit vspace: MutableInnerProductModule[SparseVector[Double], Double],
+//                         canTraverse: CanTraverseValues[SparseVector[Double], Double],
+//                         man: ClassTag[SparseVector[Double]]) extends Classifier.Trainer[L, SparseVector[Double]] {
+//    self: CSCInitializer[L, CSCMatrix[Double]] =>
+//
+//    override type MyClassifier = NCA[L, SparseVector[Double], CSCMatrix[Double]]
+//
+//    override def train(data: Iterable[Example[L, SparseVector[Double]]]): MyClassifier = {
+//
+//      val initial: CSCMatrix[Double] = init(data)
+//
+//      val df = new SparseObjectives.NCASparseBatchObjective[L](data)
+//
+//      implicit val mvIso = new Iso_CSC_SV(initial.rows, initial.cols)
+//
+//      val A: CSCMatrix[Double] = mvIso.backward(opt.minimize(df.throughLens[SparseVector[Double]], mvIso.forward(initial)))
+//
+//      new NCA[L, SparseVector[Double], CSCMatrix[Double]](data, K, A)
+//    }
+//  }
 
 }

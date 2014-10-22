@@ -17,47 +17,46 @@ import breeze.collection.mutable.Beam
  *
  */
 class kNearestNeighbor[L, T, D](val examples: Iterable[Example[L, T]],
-                                val k: Int = 1)(implicit dm: UImpl2[D, T, T, Double]) extends Classifier[L, T] {
+                                val k: Int = 1)(implicit dm: UImpl2[D, T, T, Double]) extends ParKNNClassifier[L, T] {
 
 
-  // Iterable of (example, distance) tuples
-  type DistanceResult = Iterable[(Example[L,T],Double)]
-
-  def testLOO(): Double = {
-    val indexedExamples = examples.zipWithIndex
-    indexedExamples.map({case (ex,i) =>
-      val beam = Beam[(L, Double)](k)(Ordering.by(-(_: (_, Double))._2))
-      beam ++= indexedExamples.
-               withFilter(_._2 != i).
-               map({ case (e,j) => (e.label, dm(e.features, ex.features))})
-      beam.groupBy(_._1).maxBy(_._2.size)._1 == ex.label
-    }).count(identity).toDouble / examples.size
-  }
-
-  /*
-   * Additional method to extract distances of k nearest neighbors
-   */
-  def distances(o: T): DistanceResult = {
-    val beam = Beam[(Example[L,T], Double)](k)(Ordering.by(-(_: (_, Double))._2))
-    beam ++= examples.map(e => (e, dm(e.features, o)))
-  }
-
-  /** For the observation, return the max voting label with prob = 1.0
-    */
-  override def scores(o: T): Counter[L, Double] = {
-    // Beam reverses ordering from min heap to max heap, but we want min heap
-    // since we are tracking distances, not scores.
-    val beam = Beam[(L, Double)](k)(Ordering.by(-(_: (_, Double))._2))
-
-    // Add all examples to beam, tracking label and distance from testing point
-    beam ++= examples.map(e => (e.label, dm(e.features, o)))
-
-    // Max voting classification rule
-    val predicted = beam.groupBy(_._1).maxBy(_._2.size)._1
-
-    // Degenerate discrete distribution with prob = 1.0 at predicted label
-    Counter((predicted, 1.0))
-  }
+  def distance(a: T, b: T): Double = dm(a,b)
+//
+//  def testLOO(): Double = {
+//    val indexedExamples = examples.zipWithIndex
+//    indexedExamples.map({case (ex,i) =>
+//      val beam = Beam[(L, Double)](k)(Ordering.by(-(_: (_, Double))._2))
+//      beam ++= indexedExamples.
+//               withFilter(_._2 != i).
+//               map({ case (e,j) => (e.label, dm(e.features, ex.features))})
+//      beam.groupBy(_._1).maxBy(_._2.size)._1 == ex.label
+//    }).count(identity).toDouble / examples.size
+//  }
+//
+//  /*
+//   * Additional method to extract distances of k nearest neighbors
+//   */
+//  def distances(o: T): Iterable[DistanceResult] = {
+//    val beam = Beam[DistanceResult](k)(distTuple3Ord)
+//    beam ++= examples.map(e => (e.label,e.features, dm(e.features, o)))
+//  }
+//
+//  /** For the observation, return the max voting label with prob = 1.0
+//    */
+//  override def scores(o: T): Counter[L, Double] = {
+//    // Beam reverses ordering from min heap to max heap, but we want min heap
+//    // since we are tracking distances, not scores.
+//    val beam = Beam[(L, Double)](k)(Ordering.by(-(_: (_, Double))._2))
+//
+//    // Add all examples to beam, tracking label and distance from testing point
+//    beam ++= examples.map(e => (e.label, dm(e.features, o)))
+//
+//    // Max voting classification rule
+//    val predicted = beam.groupBy(_._1).maxBy(_._2.size)._1
+//
+//    // Degenerate discrete distribution with prob = 1.0 at predicted label
+//    Counter((predicted, 1.0))
+//  }
 }
 
 object kNearestNeighbor {

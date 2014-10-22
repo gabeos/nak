@@ -79,12 +79,17 @@ class ContingencyStats[L] private (private val classWise: Map[L,Table]) {
     def f(beta:Double) = mean(classWise.valuesIterator.map(_.f(beta)))
   }
 
+  lazy val accuracy = (new Accuracy() /: classWise.values) {(acc: Accuracy, tbl: Table) => acc + new Accuracy(tbl.tp,tbl.tp+tbl.fp)}
+
+  def classes: Set[L] = classWise.keySet
+
   private def r(x:Double) = "%.4f" format x
 
   override def toString() = {
     val buf = new StringBuilder
     buf ++= "Contingency Statistics:\n"
     buf ++= "==========================\n"
+    buf ++= accuracy.toString
     buf ++= "Macro: Prec " + r(macroaveraged.precision) + " Recall: " + r(macroaveraged.recall) + " F1: " + r(macroaveraged.f) + "\n"
     buf ++= "Micro: Prec " + r(microaveraged.precision) + " Recall: " + r(microaveraged.recall) + " F1: " + r(microaveraged.f) + "\n"
     buf ++= "==========================\n"
@@ -115,7 +120,8 @@ object ContingencyStats {
   class Accuracy(val numRight: Int, val numTotal: Int) {
     def this() = this(0,0)
     def accuracy = if(numTotal == 0) 0.0 else numRight.asInstanceOf[Double]/ numTotal
-    def + (b:Boolean) = new Accuracy(if(b) numRight + 1 else numRight, numTotal + 1)
+    def + (b:Boolean): Accuracy = new Accuracy(if(b) numRight + 1 else numRight, numTotal + 1)
+    def + (a: Accuracy): Accuracy = new Accuracy(numRight + a.numRight,numTotal + a.numTotal)
     def ++(b:Iterator[Boolean]) = b.foldLeft(this)(_+_)
     def ++(b:Iterable[Boolean]) = b.foldLeft(this)(_+_)
 
