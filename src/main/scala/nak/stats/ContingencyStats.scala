@@ -79,8 +79,6 @@ class ContingencyStats[L] private (private val classWise: Map[L,Table]) {
     def f(beta:Double) = mean(classWise.valuesIterator.map(_.f(beta)))
   }
 
-  lazy val accuracy = (new Accuracy() /: classWise.values) {(acc: Accuracy, tbl: Table) => acc + new Accuracy(tbl.tp,tbl.tp+tbl.fp)}
-
   def classes: Set[L] = classWise.keySet
 
   private def r(x:Double) = "%.4f" format x
@@ -89,7 +87,6 @@ class ContingencyStats[L] private (private val classWise: Map[L,Table]) {
     val buf = new StringBuilder
     buf ++= "Contingency Statistics:\n"
     buf ++= "==========================\n"
-    buf ++= accuracy.toString
     buf ++= "Macro: Prec " + r(macroaveraged.precision) + " Recall: " + r(macroaveraged.recall) + " F1: " + r(macroaveraged.f) + "\n"
     buf ++= "Micro: Prec " + r(microaveraged.precision) + " Recall: " + r(microaveraged.recall) + " F1: " + r(microaveraged.f) + "\n"
     buf ++= "==========================\n"
@@ -99,7 +96,6 @@ class ContingencyStats[L] private (private val classWise: Map[L,Table]) {
     }
     buf.toString
   }
-
 }
 
 object ContingencyStats {
