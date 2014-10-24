@@ -56,13 +56,13 @@ trait ParKNNClassifier[L,T] extends kNNClassifier[L,T] {
                         }).count(identity).toDouble / examples.size
   }
 
+  // Counts each hit in top-k as 1/k, resulting in max voting rule for top-k classification
   def scores(o: T): Counter[L, Double] =
     Counter[L,Double](
       Beam[(L, Double)](k)(distTuple2Ord) ++= parEx.map(ex => {
         val dr = distanceResult(ex, o)
         dr._1 -> dr._3
-      }).seq.map(ld => ld._1 -> ld._2 / k)
-    )
+      }).seq.map(ld => ld._1 -> 1.0/k))
 }
 
 
