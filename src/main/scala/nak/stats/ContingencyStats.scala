@@ -58,6 +58,8 @@ class ContingencyStats[L] private (private val classWise: Map[L,Table]) {
     }
   }
 
+  def tables = classWise
+
   def precision(l:L) = classWise(l).precision
   def recall(l:L) = classWise(l).recall
   /** F1 score for this label. */
@@ -113,15 +115,19 @@ object ContingencyStats {
     (guessed.iterator zip gold.iterator).foldLeft(ContingencyStats[L]())(_+_)
   }
 
-  class Accuracy(val numRight: Int, val numTotal: Int) {
+  case class Accuracy(numRight: Int, numTotal: Int) {
     def this() = this(0,0)
-    def accuracy = if(numTotal == 0) 0.0 else numRight.asInstanceOf[Double]/ numTotal
+    def accuracy = if(numTotal == 0) 0.0 else numRight.toDouble / numTotal
     def + (b:Boolean): Accuracy = new Accuracy(if(b) numRight + 1 else numRight, numTotal + 1)
     def + (a: Accuracy): Accuracy = new Accuracy(numRight + a.numRight,numTotal + a.numTotal)
     def ++(b:Iterator[Boolean]) = b.foldLeft(this)(_+_)
     def ++(b:Iterable[Boolean]) = b.foldLeft(this)(_+_)
 
     override def toString = "Accuracy: " + accuracy
+  }
+
+  object Accuracy {
+    def apply(): Accuracy = new Accuracy()
   }
 
   // true positive, false positive, false negative. TN is only used
