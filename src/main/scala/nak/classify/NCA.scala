@@ -108,6 +108,7 @@ object NCA {
     type MyClassifier = MahalanobisKNN[L, T, M]
 
     logger.info(s"Initializing NCA Trainer with OptParams: $opt")
+    logger.info(s"Using netlib BLAS version: ${com.github.fommil.netlib.BLAS.getInstance.getClass.getName}")
 
     def train(data: Iterable[Example[L, T]]): MyClassifier = {
       logger.info(s"Training NCA-kNN classifier with ${data.size} examples.")

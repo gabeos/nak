@@ -24,7 +24,7 @@ trait kNNClassifier[L,T] extends Classifier[L,T] {
   def topK(o: T): Iterable[DistanceResult]
 
   def scoresFromTopK(topk: Iterable[DistanceResult]): Counter[L,Double]
-  
+
   def distance(o: T,l: L): DistanceResult
 
   def leaveOneOutAccuracy(): Double
