@@ -18,7 +18,7 @@ package nak.classify
 
 
 import breeze.linalg._
-import breeze.math.MutableLPVectorField
+import breeze.math.{MutableCoordinateField, MutableVectorField, MutableLPVectorField}
 import breeze.numerics._
 import nak.data._
 import breeze.optimize._
@@ -37,6 +37,8 @@ object LogisticClassifier {
   def main(args: Array[String]) {
     val data = DataMatrix.fromURL[Int](new java.net.URL("http://www-stat.stanford.edu/~tibs/ElemStatLearn/datasets/spam.data"),-1, labelReader = _.toInt)
     val vectors = data.rows
+
+    implicit val lps = MutableLPVectorField.make[DenseVector[Double],Double]
 
     val classifier = new LogisticClassifier.Trainer[Int,DenseVector[Double]].train(vectors)
     for( ex <- vectors) {
@@ -73,7 +75,7 @@ object LogisticClassifier {
 //
       val weights = (new LBFGS[LFMatrix[L, TF]]()).minimize(DiffFunction.withL2Regularization(obj, 1.0), guess)
 
-      new LinearClassifier(weights.unindexed,Counter[L,Double]())
+      new LinearClassifier(weights.unindexed,Counter[L,Double](data.head.label -> 0.0001))
     }
 
     protected def objective(data: IndexedSeq[Example[L,TF]], labelIndex: Index[L]) = new ObjectiveFunction(data, labelIndex)
@@ -190,6 +192,8 @@ object LogisticClassifierFromCsv {
 
     // Train the classifier
     val opt = params.opt
+
+    implicit val lps = MutableLPVectorField.make[SparseVector[Double],Double]
 
     val classifier = 
       new LogisticClassifier.Trainer[String,SparseVector[Double]](opt)
