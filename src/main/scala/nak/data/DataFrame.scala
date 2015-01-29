@@ -271,7 +271,7 @@ object DataFrame {
                                       zero: Zero[S], semiring: Semiring[S], man: ClassTag[S]) =
     new OpMulMatrix.Impl2[DataFrame[RL,CL,M,S],V,Counter[RL,S]] {
       def apply(v: DataFrame[RL, CL, M, S], v2: V): Counter[RL, S] = {
-        Encoder.fromIndex(v.rowIndex).decode(_uMul(v.underlying,v2))
+        Encoder.fromIndex(v.rowIndex).decode[S](_uMul(v.underlying,v2))
       }
     }
 //

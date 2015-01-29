@@ -19,7 +19,7 @@ class NCAGenSparseClassifierTest
   var i = 0
   def trainer[L]: Trainer[L, SparseVector[Double]] = {
     import CSCMatrix.FrobeniusInnerProductCSCMatrixSpace._
-    import breeze.math.MutableOptimizationSpace.SparseOptimizationSpace._
+    import breeze.math.MutableOptimizationSpace.SparseDoubleOptimizationSpace._
     new NCA.Trainer[L, SparseVector[Double], CSCMatrix[Double]]() with GenericScaledDiagInitializer[L,SparseVector[Double],CSCMatrix[Double]]
   }
 }

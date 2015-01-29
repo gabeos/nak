@@ -22,7 +22,7 @@ class NCAGenDenseClassifierTest
   var i = 0
   def trainer[L]: Trainer[L, DenseVector[Double]] = {
     import DenseMatrix.FrobeniusInnerProductDenseMatrixSpace._
-    import breeze.math.MutableOptimizationSpace.DenseOptimizationSpace._
+    import breeze.math.MutableOptimizationSpace.DenseDoubleOptimizationSpace._
     new NCA.Trainer[L, DenseVector[Double], DenseMatrix[Double]](NCAOptParams()) with RandomInitializer[L,DenseVector[Double],DenseMatrix[Double]]
   }
 }
